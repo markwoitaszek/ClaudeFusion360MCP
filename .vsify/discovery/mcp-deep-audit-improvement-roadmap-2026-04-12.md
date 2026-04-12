@@ -71,31 +71,31 @@ Comprehensive audit of the ClaudeFusion360MCP repository to verify MCP legitimac
 
 ### Short-Term (Hours to 1 Day)
 
-| ID   | Requirement                                             | Type     | Effort |
-| ---- | ------------------------------------------------------- | -------- | ------ |
-| ST-1 | Fix threading: dispatch Fusion API calls to main thread | Bug fix  | Medium |
-| ST-2 | Eliminate 4 bare except:pass blocks                     | Bug fix  | Low    |
-| ST-3 | Restrict export/import filepaths to safe directories    | Security | Low    |
-| ST-4 | Fix README tool list and doc drift                      | Docs     | Low    |
+| ID   | Requirement                                             | Type     | Effort | Status |
+| ---- | ------------------------------------------------------- | -------- | ------ | ------ |
+| ST-1 | Fix threading: dispatch Fusion API calls to main thread | Bug fix  | Medium | Done   |
+| ST-2 | Eliminate 4 bare except:pass blocks                     | Bug fix  | Low    | Done   |
+| ST-3 | Restrict export/import filepaths to safe directories    | Security | Low    | Done   |
+| ST-4 | Fix README tool list and doc drift                      | Docs     | Low    | Done   |
 
 ### Medium-Term (Days to Weeks)
 
-| ID   | Requirement                                             | Type     | Effort |
-| ---- | ------------------------------------------------------- | -------- | ------ |
-| MT-1 | Implement 30 missing add-in handlers                    | Feature  | High   |
-| MT-2 | Add input validation (ranges, enums, required fields)   | Quality  | Medium |
-| MT-3 | Set IPC directory permissions to 700, add session token | Security | Low    |
-| MT-4 | Establish pytest test suite with mock IPC               | Quality  | Medium |
-| MT-5 | Activate linting (ruff) + formatting (black) + CI       | Quality  | Low    |
+| ID   | Requirement                                             | Type     | Effort | Status  |
+| ---- | ------------------------------------------------------- | -------- | ------ | ------- |
+| MT-1 | Implement 30 missing add-in handlers                    | Feature  | High   | Pending |
+| MT-2 | Add input validation (ranges, enums, required fields)   | Quality  | Medium | Pending |
+| MT-3 | Set IPC directory permissions to 700, add session token | Security | Low    | Partial |
+| MT-4 | Establish pytest test suite with mock IPC               | Quality  | Medium | Pending |
+| MT-5 | Activate linting (ruff) + formatting (black) + CI       | Quality  | Low    | Pending |
 
 ### Long-Term (Weeks)
 
-| ID   | Requirement                                     | Type    | Effort |
-| ---- | ----------------------------------------------- | ------- | ------ |
-| LT-1 | Add MCP registry metadata (mcp.json, schemas)   | Feature | Low    |
-| LT-2 | Create one-command installer                    | Feature | Medium |
-| LT-3 | Add structured logging to both components       | Quality | Low    |
-| LT-4 | Enforce consistent semver across all components | Quality | Low    |
+| ID   | Requirement                                     | Type    | Effort | Status  |
+| ---- | ----------------------------------------------- | ------- | ------ | ------- |
+| LT-1 | Add MCP registry metadata (mcp.json, schemas)   | Feature | Low    | Pending |
+| LT-2 | Create one-command installer                    | Feature | Medium | Pending |
+| LT-3 | Add structured logging to both components       | Quality | Low    | Pending |
+| LT-4 | Enforce consistent semver across all components | Quality | Low    | Pending |
 
 ### New Requirements Discovered
 
