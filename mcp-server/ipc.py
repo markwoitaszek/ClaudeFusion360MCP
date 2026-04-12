@@ -15,6 +15,7 @@ Session token (MT-3):
 import json
 import os
 import secrets
+import stat
 import time
 from pathlib import Path
 
@@ -31,6 +32,12 @@ def initialize_ipc():
     global _session_token
     COMM_DIR.mkdir(mode=0o700, exist_ok=True)
     os.chmod(COMM_DIR, 0o700)
+    # Verify directory is a real directory owned by the current user (TOCTOU guard)
+    dir_stat = os.stat(COMM_DIR, follow_symlinks=False)
+    if not stat.S_ISDIR(dir_stat.st_mode):
+        raise RuntimeError(f"{COMM_DIR} is not a real directory — possible symlink attack")
+    if hasattr(os, "getuid") and dir_stat.st_uid != os.getuid():
+        raise RuntimeError(f"{COMM_DIR} is not owned by current user")
 
     _session_token = secrets.token_hex(16)
     token_path = COMM_DIR / "session_token"
@@ -68,8 +75,12 @@ def send_fusion_command(tool_name: str, params: dict) -> dict:
     resp_file = COMM_DIR / f"response_{cmd_id}.json"
 
     command = {"type": "tool", "name": tool_name, "params": params, "id": cmd_id}
-    if _session_token is not None:
-        command["session_token"] = _session_token
+    if _session_token is None:
+        # Lazy init: supports multi-process FastMCP workers that import without __main__
+        initialize_ipc()
+    if _session_token is None:
+        raise RuntimeError("IPC initialization failed: session token could not be generated")
+    command["session_token"] = _session_token
 
     # Atomic write: write to .tmp then rename so the add-in never reads partial JSON
     tmp_file = COMM_DIR / f"command_{cmd_id}.tmp"
@@ -83,7 +94,6 @@ def send_fusion_command(tool_name: str, params: dict) -> dict:
     # 900 iterations at 50ms = 45s timeout
     try:
         for _ in range(900):
-            time.sleep(0.05)
             if resp_file.exists():
                 with open(resp_file, "r") as f:
                     result = json.load(f)
@@ -92,6 +102,8 @@ def send_fusion_command(tool_name: str, params: dict) -> dict:
                 if not result.get("success"):
                     raise Exception(result.get("error", "Unknown error"))
                 return result
+            time.sleep(0.05)
         raise Exception(f"Timeout after 45s waiting for '{tool_name}' — is Fusion 360 running with FusionMCP add-in?")
     finally:
         cmd_file.unlink(missing_ok=True)
+        resp_file.unlink(missing_ok=True)

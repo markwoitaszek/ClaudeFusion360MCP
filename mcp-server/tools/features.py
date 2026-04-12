@@ -164,6 +164,8 @@ def pattern_rectangular(
     validate_positive(x_spacing, "x_spacing")
     if y_count > 1:
         validate_positive(y_spacing, "y_spacing")
+    elif y_spacing and y_spacing > 0:
+        raise ValueError("y_spacing is non-zero but y_count is 1; set y_count >= 2 to use Y direction")
     params = {"x_count": x_count, "x_spacing": x_spacing, "y_count": y_count, "y_spacing": y_spacing}
     if body_index is not None:
         params["body_index"] = body_index

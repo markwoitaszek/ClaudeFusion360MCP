@@ -3,6 +3,7 @@ import adsk.fusion
 import os
 import traceback
 import json
+import hmac
 import math
 import time
 import threading
@@ -31,8 +32,11 @@ def write_error_response(command_id, error_msg):
     try:
         resp_file = COMM_DIR / f"response_{command_id}.json"
         tmp_file = COMM_DIR / f"response_{command_id}.tmp"
-        with open(tmp_file, "w") as f:
-            json.dump({"success": False, "error": str(error_msg)}, f)
+        fd = os.open(str(tmp_file), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, json.dumps({"success": False, "error": str(error_msg)}).encode())
+        finally:
+            os.close(fd)
         os.replace(tmp_file, resp_file)
     except Exception:
         traceback.print_exc()
@@ -59,8 +63,11 @@ class CommandEventHandler(adsk.core.CustomEventHandler):
             result = execute_command(command)
             resp_file = COMM_DIR / f"response_{command_id}.json"
             tmp_file = COMM_DIR / f"response_{command_id}.tmp"
-            with open(tmp_file, "w") as f:
-                json.dump(result, f)
+            fd = os.open(str(tmp_file), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            try:
+                os.write(fd, json.dumps(result).encode())
+            finally:
+                os.close(fd)
             os.replace(tmp_file, resp_file)
         except Exception as e:
             traceback.print_exc()
@@ -150,9 +157,14 @@ def monitor_commands():
                     # Session token validation (MT-3) — reject if token loaded but mismatched
                     if _session_token is not None:
                         cmd_token = command.get("session_token", "")
-                        if cmd_token != _session_token:
-                            _handle_cmd_error(cmd_file, "Invalid or missing session token")
-                            continue
+                        if not hmac.compare_digest(cmd_token.encode(), _session_token.encode()):
+                            # Token mismatch — re-read in case MCP server restarted with new token
+                            _load_session_token()
+                            if _session_token is not None and hmac.compare_digest(cmd_token.encode(), _session_token.encode()):
+                                pass  # Token refreshed and now matches — continue processing
+                            else:
+                                _handle_cmd_error(cmd_file, "Invalid or missing session token")
+                                continue
                     else:
                         # Token not loaded — reject commands for security
                         _handle_cmd_error(cmd_file, "Session token not loaded — restart add-in after MCP server")
@@ -171,9 +183,10 @@ def monitor_commands():
 
                     try:
                         cmd_file.unlink()
-                        dispatched_ids.discard(command_id)
                     except Exception:
                         pass
+                    finally:
+                        dispatched_ids.discard(command_id)
 
                 except json.JSONDecodeError as e:
                     _handle_cmd_error(cmd_file, f"Malformed command JSON: {e}")
@@ -237,6 +250,8 @@ def _get_active_sketch(design):
     activeEdit = design.activeEditObject
     if not activeEdit:
         return None, {"success": False, "error": "No active sketch"}
+    if not isinstance(activeEdit, adsk.fusion.Sketch):
+        return None, {"success": False, "error": "Active edit context is not a sketch. Call finish_sketch or close the active editor first."}
     return activeEdit, None
 
 
@@ -378,7 +393,7 @@ def handle_fillet(design, rootComp, params):
 
 
 def handle_finish_sketch(design, rootComp, params):
-    design.activeEditObject = None
+    rootComp.activate()
     return {"success": True, "message": "Sketch finished"}
 
 
@@ -434,6 +449,8 @@ def handle_draw_arc(design, rootComp, params):
     sweep = math.atan2(params["end_y"] - params["center_y"], params["end_x"] - params["center_x"]) - math.atan2(
         params["start_y"] - params["center_y"], params["start_x"] - params["center_x"]
     )
+    if abs(sweep) < 1e-6:
+        return {"success": False, "error": "Degenerate arc: start and end points are coincident (or nearly so)"}
     if sweep <= 0:
         sweep += 2 * math.pi
     sketch.sketchCurves.sketchArcs.addByCenterStartSweep(center, start, sweep)
@@ -731,17 +748,16 @@ def handle_delete_component(design, rootComp, params):
 
 
 def handle_check_interference(design, rootComp, params):
-    if rootComp.occurrences.count < 2:
+    count = rootComp.occurrences.count
+    if count < 2:
         return {"success": True, "interference": False, "message": "Need at least 2 components"}
 
-    results = []
-    for i in range(rootComp.occurrences.count):
-        for j in range(i + 1, rootComp.occurrences.count):
-            occ1 = rootComp.occurrences.item(i)
-            occ2 = rootComp.occurrences.item(j)
-            bb1 = occ1.boundingBox
-            bb2 = occ2.boundingBox
+    # Cache occurrences and bounding boxes upfront to avoid O(n²) COM calls
+    occs = [(rootComp.occurrences.item(i), rootComp.occurrences.item(i).boundingBox) for i in range(count)]
 
+    results = []
+    for i, (occ1, bb1) in enumerate(occs):
+        for occ2, bb2 in occs[i + 1:]:
             overlaps = (
                 bb1.minPoint.x <= bb2.maxPoint.x
                 and bb1.maxPoint.x >= bb2.minPoint.x
@@ -790,8 +806,10 @@ def handle_rotate_component(design, rootComp, params):
         return {"success": False, "error": f"Invalid axis: {axis_name}. Must be X, Y, or Z"}
 
     origin = adsk.core.Point3D.create(params.get("origin_x", 0), params.get("origin_y", 0), params.get("origin_z", 0))
+    rotation = adsk.core.Matrix3D.create()
+    rotation.setToRotation(math.radians(params["angle"]), axis_vec, origin)
     transform = occ.transform
-    transform.setToRotation(math.radians(params["angle"]), axis_vec, origin)
+    transform.transformBy(rotation)
     occ.transform = transform
     design.snapshots.add()
     return {"success": True, "component": occ.component.name}
@@ -815,19 +833,45 @@ def _resolve_component(rootComp, params):
     return {"success": False, "error": "Provide component name or index"}
 
 
+def _resolve_two_components(rootComp, params):
+    """Resolve two component occurrences for joint creation."""
+    idx1 = params.get("component1_index", 0)
+    idx2 = params.get("component2_index", 1)
+    count = rootComp.occurrences.count
+    if count < 2:
+        return None, None, {"success": False, "error": f"Need at least 2 component occurrences (found {count})"}
+    if idx1 < 0 or idx1 >= count:
+        return None, None, {"success": False, "error": f"Invalid component1_index: {idx1}. Available: 0-{count - 1}"}
+    if idx2 < 0 or idx2 >= count:
+        return None, None, {"success": False, "error": f"Invalid component2_index: {idx2}. Available: 0-{count - 1}"}
+    if idx1 == idx2:
+        return None, None, {"success": False, "error": "component1_index and component2_index must be different"}
+    return rootComp.occurrences.item(idx1), rootComp.occurrences.item(idx2), None
+
+
 def handle_create_revolute_joint(design, rootComp, params):
+    occ1, occ2, err = _resolve_two_components(rootComp, params)
+    if err:
+        return err
     joints = rootComp.joints
-    geo = adsk.fusion.JointGeometry.createByPoint(rootComp, adsk.core.Point3D.create(params.get("x", 0), params.get("y", 0), params.get("z", 0)))
-    jointInput = joints.createInput(geo, geo)
+    point = adsk.core.Point3D.create(params.get("x", 0), params.get("y", 0), params.get("z", 0))
+    geo1 = adsk.fusion.JointGeometry.createByPoint(occ1, point)
+    geo2 = adsk.fusion.JointGeometry.createByPoint(occ2, point)
+    jointInput = joints.createInput(geo1, geo2)
     jointInput.setAsRevoluteJointMotion(adsk.fusion.JointDirections.ZAxisJointDirection)
     joint = joints.add(jointInput)
     return {"success": True, "joint_name": joint.name}
 
 
 def handle_create_slider_joint(design, rootComp, params):
+    occ1, occ2, err = _resolve_two_components(rootComp, params)
+    if err:
+        return err
     joints = rootComp.joints
-    geo = adsk.fusion.JointGeometry.createByPoint(rootComp, adsk.core.Point3D.create(params.get("x", 0), params.get("y", 0), params.get("z", 0)))
-    jointInput = joints.createInput(geo, geo)
+    point = adsk.core.Point3D.create(params.get("x", 0), params.get("y", 0), params.get("z", 0))
+    geo1 = adsk.fusion.JointGeometry.createByPoint(occ1, point)
+    geo2 = adsk.fusion.JointGeometry.createByPoint(occ2, point)
+    jointInput = joints.createInput(geo1, geo2)
     jointInput.setAsSliderJointMotion(adsk.fusion.JointDirections.XAxisJointDirection)
     joint = joints.add(jointInput)
     return {"success": True, "joint_name": joint.name}
@@ -931,11 +975,18 @@ def handle_import_mesh(design, rootComp, params):
     return {"success": True, "filepath": filepath}
 
 
+MAX_BATCH_COMMANDS = 20
+
+
 def handle_batch(design, rootComp, params):
     commands = params.get("commands", [])
+    if len(commands) > MAX_BATCH_COMMANDS:
+        return {"success": False, "error": f"Batch exceeds {MAX_BATCH_COMMANDS} commands (got {len(commands)})"}
     results = []
     for i, cmd in enumerate(commands):
         cmd_name = cmd.get("name")
+        if cmd_name == "batch":
+            return {"success": False, "error": "Nested batch commands are not allowed", "partial_results": results}
         cmd_params = cmd.get("params", {})
         handler = HANDLER_REGISTRY.get(cmd_name)
         if handler is None:
