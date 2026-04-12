@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings (machine-specific, auto-generated)
+.claude/settings.local.json
+
+# Execution records (machine-specific, session-scoped — ADR-D012)
+.claude/executions/
+
+# Metrics (telemetry data — ADR-D008)
+.metrics/
+
+# Project configuration (plugin-managed, machine-generated — ADR-D011)
+.vsify.json
