@@ -19,7 +19,7 @@ def fit_view() -> dict:
 
 @router.tool()
 def get_design_info() -> dict:
-    """Get information about the current design (name, body count, sketch count, component count, active sketch status)."""
+    """Get information about the current design (name, body count, sketch count, component count)."""
     return send_fusion_command("get_design_info", {})
 
 

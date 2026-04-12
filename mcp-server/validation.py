@@ -7,6 +7,7 @@ with a descriptive message. FastMCP translates these to MCP error responses.
 from pathlib import Path
 
 # Safe directories for export/import operations (pre-resolved at startup).
+# SYNC: Keep in sync with fusion-addin/FusionMCP.py _SAFE_EXPORT_DIRS
 SAFE_EXPORT_DIRS = [
     (Path.home() / "Desktop").resolve(),
     (Path.home() / "Downloads").resolve(),

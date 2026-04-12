@@ -108,7 +108,11 @@ def create_revolute_joint(
     max_angle: float = None,
     flip: bool = False,
 ) -> dict:
-    """Create a revolute (rotating) joint between two components."""
+    """Create a revolute (rotating) joint between two components.
+
+    Note: axis_x/y/z are accepted for future use but currently mapped to Z axis.
+    Note: min_angle/max_angle are accepted for future use but not yet enforced.
+    """
     params = {"x": x, "y": y, "z": z, "axis_x": axis_x, "axis_y": axis_y, "axis_z": axis_z, "flip": flip}
     if component1_index is not None:
         params["component1_index"] = component1_index
@@ -134,7 +138,11 @@ def create_slider_joint(
     min_distance: float = None,
     max_distance: float = None,
 ) -> dict:
-    """Create a slider (linear) joint between two components."""
+    """Create a slider (linear) joint between two components.
+
+    Note: axis_x/y/z are accepted for future use but currently mapped to X axis.
+    Note: min_distance/max_distance are accepted for future use but not yet enforced.
+    """
     params = {"x": x, "y": y, "z": z, "axis_x": axis_x, "axis_y": axis_y, "axis_z": axis_z}
     if component1_index is not None:
         params["component1_index"] = component1_index

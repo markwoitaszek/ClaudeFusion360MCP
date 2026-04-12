@@ -4,6 +4,8 @@ import os
 import traceback
 import json
 import hmac
+import logging
+import logging.handlers
 import math
 import time
 import threading
@@ -18,6 +20,18 @@ custom_event_handler = None
 
 COMM_DIR = Path.home() / "fusion_mcp_comm"
 CUSTOM_EVENT_ID = "FusionMCPCommandEvent"
+
+# Structured logging to file (visible outside Fusion 360's embedded Python)
+logger = logging.getLogger("FusionMCP")
+logger.setLevel(logging.DEBUG)
+_log_file = COMM_DIR / "addin.log"
+try:
+    COMM_DIR.mkdir(mode=0o700, exist_ok=True)
+    _handler = logging.handlers.RotatingFileHandler(str(_log_file), maxBytes=1_000_000, backupCount=3)
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(_handler)
+except Exception:
+    pass  # Logging is best-effort; don't block add-in startup
 
 # Thread-safe storage for pending commands: {command_id: command_dict}
 _pending_commands = {}
@@ -39,7 +53,7 @@ def write_error_response(command_id, error_msg):
             os.close(fd)
         os.replace(tmp_file, resp_file)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Failed to write error response for command %s", command_id)
 
 
 class CommandEventHandler(adsk.core.CustomEventHandler):
@@ -70,7 +84,7 @@ class CommandEventHandler(adsk.core.CustomEventHandler):
                 os.close(fd)
             os.replace(tmp_file, resp_file)
         except Exception as e:
-            traceback.print_exc()
+            logger.exception("Event handler error for command %s", command_id)
             if command_id:
                 write_error_response(command_id, f"Event handler error: {e}")
 
@@ -83,7 +97,7 @@ def _load_session_token():
         if token_path.exists():
             _session_token = token_path.read_text().strip()
     except Exception:
-        traceback.print_exc()
+        logger.exception("Failed to load session token from %s", token_path)
         _session_token = None
 
 
@@ -125,7 +139,7 @@ def stop(context):
         if ui:
             ui.messageBox("Fusion MCP Stopped")
     except Exception:
-        traceback.print_exc()
+        logger.exception("Error during add-in stop")
 
 
 def _handle_cmd_error(cmd_file, error_msg):
@@ -140,9 +154,15 @@ def _handle_cmd_error(cmd_file, error_msg):
 
 def monitor_commands():
     """Background thread: watches for command files, dispatches to main thread via CustomEvent."""
-    dispatched_ids = set()
+    dispatched_ids = {}  # command_id -> dispatch_time (for TTL-based cleanup)
     while not _stop_event.is_set():
         try:
+            # TTL cleanup: remove entries older than 60s to prevent unbounded growth
+            now = time.monotonic()
+            expired = [cid for cid, t in dispatched_ids.items() if now - t > 60]
+            for cid in expired:
+                dispatched_ids.pop(cid, None)
+
             cmd_files = list(COMM_DIR.glob("command_*.json"))
             for cmd_file in cmd_files:
                 try:
@@ -163,10 +183,12 @@ def monitor_commands():
                             if _session_token is not None and hmac.compare_digest(cmd_token.encode(), _session_token.encode()):
                                 pass  # Token refreshed and now matches — continue processing
                             else:
+                                logger.warning("Session token mismatch for command %s", command_id)
                                 _handle_cmd_error(cmd_file, "Invalid or missing session token")
                                 continue
                     else:
                         # Token not loaded — reject commands for security
+                        logger.warning("Session token not loaded — rejecting command %s", command_id)
                         _handle_cmd_error(cmd_file, "Session token not loaded — restart add-in after MCP server")
                         continue
 
@@ -179,21 +201,19 @@ def monitor_commands():
                         _pending_commands[command_id] = command
 
                     app.fireCustomEvent(CUSTOM_EVENT_ID, command_id)
-                    dispatched_ids.add(command_id)
+                    dispatched_ids[command_id] = time.monotonic()
 
                     try:
                         cmd_file.unlink()
                     except Exception:
                         pass
-                    finally:
-                        dispatched_ids.discard(command_id)
 
                 except json.JSONDecodeError as e:
                     _handle_cmd_error(cmd_file, f"Malformed command JSON: {e}")
                 except Exception as e:
                     _handle_cmd_error(cmd_file, f"Command processing error: {e}")
         except Exception:
-            traceback.print_exc()
+            logger.exception("Error in monitor_commands loop")
         _stop_event.wait(0.1)
 
 
@@ -217,6 +237,7 @@ def execute_command(command):
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
         return handler(design, rootComp, params)
     except Exception as e:
+        logger.exception("Handler %s failed", tool_name)
         return {"success": False, "error": str(e)}
 
 
@@ -225,6 +246,7 @@ def execute_command(command):
 # =============================================================================
 
 # Safe directories for export/import (same list as MCP server)
+# SYNC: Keep in sync with mcp-server/validation.py SAFE_EXPORT_DIRS
 _SAFE_EXPORT_DIRS = [
     (Path.home() / "Desktop").resolve(),
     (Path.home() / "Downloads").resolve(),
@@ -369,7 +391,15 @@ def handle_revolve(design, rootComp, params):
     if sketch.profiles.count == 0:
         return {"success": False, "error": "No profiles"}
     profile = sketch.profiles.item(sketch.profiles.count - 1)
-    axis = rootComp.yConstructionAxis
+    axis_name = params.get("axis", "Y").upper()
+    axis_map = {
+        "X": rootComp.xConstructionAxis,
+        "Y": rootComp.yConstructionAxis,
+        "Z": rootComp.zConstructionAxis,
+    }
+    axis = axis_map.get(axis_name)
+    if axis is None:
+        return {"success": False, "error": f"Invalid axis: '{axis_name}'. Must be X, Y, or Z"}
     revolves = rootComp.features.revolveFeatures
     revInput = revolves.createInput(profile, axis, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     revInput.setAngleExtent(False, adsk.core.ValueInput.createByReal(math.radians(params["angle"])))
@@ -414,7 +444,7 @@ def handle_get_design_info(design, rootComp, params):
 
 
 # =============================================================================
-# NEW HANDLERS (30 stub implementations)
+# HANDLERS — Added in MT-1 audit
 # =============================================================================
 
 

@@ -13,11 +13,14 @@ Session token (MT-3):
 """
 
 import json
+import logging
 import os
 import secrets
 import stat
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 COMM_DIR = Path.home() / "fusion_mcp_comm"
 
@@ -35,8 +38,10 @@ def initialize_ipc():
     # Verify directory is a real directory owned by the current user (TOCTOU guard)
     dir_stat = os.stat(COMM_DIR, follow_symlinks=False)
     if not stat.S_ISDIR(dir_stat.st_mode):
+        logger.error("COMM_DIR %s is not a real directory — possible symlink attack", COMM_DIR)
         raise RuntimeError(f"{COMM_DIR} is not a real directory — possible symlink attack")
     if hasattr(os, "getuid") and dir_stat.st_uid != os.getuid():
+        logger.error("COMM_DIR %s is not owned by current user (uid=%s)", COMM_DIR, dir_stat.st_uid)
         raise RuntimeError(f"{COMM_DIR} is not owned by current user")
 
     _session_token = secrets.token_hex(16)
@@ -49,6 +54,7 @@ def initialize_ipc():
     finally:
         os.close(fd)
     os.replace(tmp_path, token_path)
+    logger.info("IPC initialized: COMM_DIR=%s", COMM_DIR)
 
 
 def send_fusion_command(tool_name: str, params: dict) -> dict:
@@ -90,20 +96,30 @@ def send_fusion_command(tool_name: str, params: dict) -> dict:
     finally:
         os.close(fd)
     os.replace(tmp_file, cmd_file)
+    logger.debug("Command sent: tool=%s cmd_id=%s", tool_name, cmd_id)
+    start_time = time.monotonic()
 
     # 900 iterations at 50ms = 45s timeout
     try:
-        for _ in range(900):
+        for i in range(900):
             if resp_file.exists():
+                elapsed_ms = (time.monotonic() - start_time) * 1000
                 with open(resp_file, "r") as f:
                     result = json.load(f)
                 resp_file.unlink(missing_ok=True)
                 cmd_file.unlink(missing_ok=True)
+                logger.debug("Response received: tool=%s cmd_id=%s elapsed_ms=%.1f", tool_name, cmd_id, elapsed_ms)
                 if not result.get("success"):
                     raise Exception(result.get("error", "Unknown error"))
                 return result
+            if i == 450:
+                logger.warning("Still waiting for '%s' (cmd_id=%s) after 22.5s", tool_name, cmd_id)
             time.sleep(0.05)
-        raise Exception(f"Timeout after 45s waiting for '{tool_name}' — is Fusion 360 running with FusionMCP add-in?")
+        logger.error("Timeout after 45s: tool=%s cmd_id=%s", tool_name, cmd_id)
+        raise Exception(
+            f"Timeout after 45s waiting for '{tool_name}' — check that Fusion 360 is running, "
+            "the FusionMCP add-in is loaded and active, and the comm directory is accessible."
+        )
     finally:
         cmd_file.unlink(missing_ok=True)
         resp_file.unlink(missing_ok=True)
