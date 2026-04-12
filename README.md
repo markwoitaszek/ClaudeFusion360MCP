@@ -12,8 +12,8 @@ Control Autodesk Fusion 360 with Claude AI through the Model Context Protocol (M
 ![Fusion 360 MCP Demo](images/hero-demo.gif)
 *Ask Claude to create a part, watch it appear in Fusion 360*
 
-This MCP server lets Claude AI directly control Fusion 360 to: lets Claude AI directly control Fusion 360 to:
-- Create 3D sketches, extrusions, revolves, and sweeps
+This MCP server lets Claude AI directly control Fusion 360 to:
+- Create 3D sketches, extrusions, and revolves
 - Build multi-component assemblies with proper positioning
 - Apply fillets, chamfers, shells, and patterns
 - Export to STL, STEP, and 3MF formats
@@ -37,7 +37,7 @@ This MCP server lets Claude AI directly control Fusion 360 to: lets Claude AI di
 pip install mcp
 
 # Clone this repository (or download ZIP)
-git clone https://github.com/YOUR_USERNAME/fusion360-mcp.git
+git clone https://github.com/markwoitaszek/ClaudeFusion360MCP.git
 cd fusion360-mcp
 ```
 
@@ -121,14 +121,15 @@ For best results, create a **Claude Project** and paste the contents of `docs/SK
 
 | Category | Tools |
 |----------|-------|
-| **Sketching** | `create_sketch`, `draw_rectangle`, `draw_circle`, `draw_line`, `draw_arc`, `draw_polygon`, `draw_slot`, `finish_sketch` |
-| **3D Operations** | `extrude`, `revolve`, `sweep`, `loft`, `shell`, `draft` |
-| **Modifications** | `fillet`, `chamfer`, `combine`, `split_body` |
+| **Sketching** | `create_sketch`, `draw_rectangle`, `draw_circle`, `draw_line`, `draw_arc`, `draw_polygon`, `finish_sketch`, `batch` |
+| **3D Operations** | `extrude`, `revolve`, `shell`, `draft` |
+| **Modifications** | `fillet`, `chamfer`, `combine` |
 | **Patterns** | `pattern_rectangular`, `pattern_circular`, `mirror` |
-| **Components** | `create_component`, `move_component`, `rotate_component`, `list_components` |
+| **Components** | `create_component`, `move_component`, `rotate_component`, `list_components`, `delete_component`, `check_interference` |
+| **Joints** | `create_revolute_joint`, `create_slider_joint`, `set_joint_angle`, `set_joint_distance` |
 | **Export/Import** | `export_stl`, `export_step`, `export_3mf`, `import_mesh` |
 | **Inspection** | `get_design_info`, `get_body_info`, `measure`, `fit_view` |
-| **Batch** | `batch_operations` (5-10x faster for multiple operations) |
+| **Utilities** | `undo`, `delete_body`, `delete_sketch` |
 
 See `docs/TOOL_REFERENCE.md` for complete API documentation.
 

@@ -159,12 +159,12 @@ Claude assumes prior work exists, but Fusion crashed/recovered to earlier state.
 Many small operations are slow (each has ~50ms roundtrip).
 
 ### Solution
-Use `batch_operations()` for multiple related commands:
+Use `batch()` for multiple related commands:
 ```python
-batch_operations([
-    {"tool": "draw_rectangle", "params": {...}},
-    {"tool": "draw_circle", "params": {...}},
-    {"tool": "extrude", "params": {...}}
+batch([
+    {"name": "draw_rectangle", "params": {...}},
+    {"name": "draw_circle", "params": {...}},
+    {"name": "extrude", "params": {...}}
 ])
 ```
 
@@ -283,4 +283,4 @@ combine(operation="join", ...)
 **NEVER call combine() without explicit user approval.** The 10 seconds saved by auto-joining can cost 10 minutes of cleanup when something is wrong.
 
 ---
-*Document current as of MCP v8.2*
+*Document current as of MCP v7.2*

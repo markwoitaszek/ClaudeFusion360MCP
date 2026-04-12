@@ -29,11 +29,67 @@ PRESERVED:
 """
 from mcp.server.fastmcp import FastMCP
 import json
+import os
 import time
 from pathlib import Path
 
 COMM_DIR = Path.home() / "fusion_mcp_comm"
-COMM_DIR.mkdir(exist_ok=True)
+COMM_DIR.mkdir(mode=0o700, exist_ok=True)
+
+# Safe directories for export/import operations.
+# Paths must resolve to a subdirectory of one of these directories.
+# Customize this list for your deployment context.
+SAFE_EXPORT_DIRS = [
+    Path.home() / "Desktop",
+    Path.home() / "Downloads",
+    Path.home() / "Documents",
+]
+
+
+def validate_filepath(filepath: str, allowed_extensions: list[str] | None = None) -> Path:
+    """Validate that a filepath is within safe directories and has an allowed extension.
+
+    Args:
+        filepath: The user-provided filepath string.
+        allowed_extensions: Optional list of allowed extensions (e.g., ['.stl', '.step']).
+
+    Returns:
+        The resolved Path if validation passes.
+
+    Raises:
+        ValueError: If the path is outside safe directories or has a disallowed extension.
+    """
+    if not filepath or not filepath.strip():
+        raise ValueError("Filepath cannot be empty")
+
+    # Reject null bytes
+    if '\x00' in filepath:
+        raise ValueError("Filepath contains null bytes")
+
+    resolved = Path(filepath).expanduser().resolve()
+
+    # Check that the resolved path is under at least one safe directory
+    is_safe = any(
+        resolved.is_relative_to(safe_dir.resolve())
+        for safe_dir in SAFE_EXPORT_DIRS
+    )
+    if not is_safe:
+        safe_names = ", ".join(f"~/{d.name}" for d in SAFE_EXPORT_DIRS)
+        raise ValueError(
+            f"Filepath is outside allowed directories. "
+            f"Allowed: {safe_names}"
+        )
+
+    # Check extension if specified
+    if allowed_extensions:
+        ext = resolved.suffix.lower()
+        if ext not in allowed_extensions:
+            raise ValueError(
+                f"File extension '{ext}' not allowed. "
+                f"Allowed extensions: {', '.join(allowed_extensions)}"
+            )
+
+    return resolved
 
 mcp = FastMCP("Fusion 360 v7.2 Enhanced")
 
@@ -55,8 +111,8 @@ def send_fusion_command(tool_name: str, params: dict) -> dict:
             try:
                 cmd_file.unlink()
                 resp_file.unlink()
-            except:
-                pass
+            except Exception:
+                pass  # File cleanup failure is non-critical
             if not result.get("success"):
                 raise Exception(result.get("error", "Unknown error"))
             return result
@@ -597,18 +653,24 @@ def delete_sketch(sketch_index: int = None) -> dict:
 
 @mcp.tool()
 def export_stl(filepath: str) -> dict:
-    """Export the design as STL file for 3D printing"""
-    return send_fusion_command("export_stl", {"filepath": filepath})
+    """Export the design as STL file for 3D printing.
+    Filepath must be within allowed directories (~/Desktop, ~/Downloads, ~/Documents)."""
+    validated = validate_filepath(filepath, allowed_extensions=['.stl'])
+    return send_fusion_command("export_stl", {"filepath": str(validated)})
 
 @mcp.tool()
 def export_step(filepath: str) -> dict:
-    """Export the design as STEP file (CAD standard)"""
-    return send_fusion_command("export_step", {"filepath": filepath})
+    """Export the design as STEP file (CAD standard).
+    Filepath must be within allowed directories (~/Desktop, ~/Downloads, ~/Documents)."""
+    validated = validate_filepath(filepath, allowed_extensions=['.step', '.stp'])
+    return send_fusion_command("export_step", {"filepath": str(validated)})
 
 @mcp.tool()
 def export_3mf(filepath: str) -> dict:
-    """Export the design as 3MF file (modern 3D printing format)"""
-    return send_fusion_command("export_3mf", {"filepath": filepath})
+    """Export the design as 3MF file (modern 3D printing format).
+    Filepath must be within allowed directories (~/Desktop, ~/Downloads, ~/Documents)."""
+    validated = validate_filepath(filepath, allowed_extensions=['.3mf'])
+    return send_fusion_command("export_3mf", {"filepath": str(validated)})
 
 # =============================================================================
 # IMPORT
@@ -616,8 +678,10 @@ def export_3mf(filepath: str) -> dict:
 
 @mcp.tool()
 def import_mesh(filepath: str, unit: str = "mm") -> dict:
-    """Import STL, OBJ, or 3MF mesh file. Units: mm, cm, or in"""
-    return send_fusion_command("import_mesh", {"filepath": filepath, "unit": unit})
+    """Import STL, OBJ, or 3MF mesh file. Units: mm, cm, or in.
+    Filepath must be within allowed directories (~/Desktop, ~/Downloads, ~/Documents)."""
+    validated = validate_filepath(filepath, allowed_extensions=['.stl', '.obj', '.3mf'])
+    return send_fusion_command("import_mesh", {"filepath": str(validated), "unit": unit})
 
 # =============================================================================
 # MAIN

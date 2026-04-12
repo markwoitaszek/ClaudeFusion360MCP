@@ -1,7 +1,7 @@
-# Fusion 360 MCP Reference v4.0
+# Fusion 360 MCP Reference v7.2
 
-**MCP Version**: 7.0.0  
-**Last Updated**: December 2024
+**MCP Version**: 7.2  
+**Last Updated**: April 2026
 
 ---
 
