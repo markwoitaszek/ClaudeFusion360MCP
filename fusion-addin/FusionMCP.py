@@ -1,5 +1,6 @@
 import adsk.core
 import adsk.fusion
+import os
 import traceback
 import json
 import time
@@ -8,7 +9,7 @@ from pathlib import Path
 
 app = None
 ui = None
-stop_thread = False
+_stop_event = threading.Event()
 monitor_thread = None
 custom_event = None
 custom_event_handler = None
@@ -25,8 +26,10 @@ def write_error_response(command_id, error_msg):
     """Write an error response file so the MCP server doesn't hang at the 45s timeout."""
     try:
         resp_file = COMM_DIR / f"response_{command_id}.json"
-        with open(resp_file, 'w') as f:
-            json.dump({"success": False, "error": str(error_msg)}, f, indent=2)
+        tmp_file = COMM_DIR / f"response_{command_id}.tmp"
+        with open(tmp_file, 'w') as f:
+            json.dump({"success": False, "error": str(error_msg)}, f)
+        os.replace(tmp_file, resp_file)
     except Exception:
         traceback.print_exc()
 
@@ -50,8 +53,10 @@ class CommandEventHandler(adsk.core.CustomEventHandler):
 
             result = execute_command(command)
             resp_file = COMM_DIR / f"response_{command_id}.json"
-            with open(resp_file, 'w') as f:
-                json.dump(result, f, indent=2)
+            tmp_file = COMM_DIR / f"response_{command_id}.tmp"
+            with open(tmp_file, 'w') as f:
+                json.dump(result, f)
+            os.replace(tmp_file, resp_file)
         except Exception as e:
             traceback.print_exc()
             if command_id:
@@ -59,12 +64,13 @@ class CommandEventHandler(adsk.core.CustomEventHandler):
 
 
 def run(context):
-    global app, ui, monitor_thread, stop_thread, custom_event, custom_event_handler
+    global app, ui, monitor_thread, custom_event, custom_event_handler
     try:
         app = adsk.core.Application.get()
         ui = app.userInterface
         COMM_DIR.mkdir(mode=0o700, exist_ok=True)
-        stop_thread = False
+        os.chmod(COMM_DIR, 0o700)  # Enforce permissions even on existing directory
+        _stop_event.clear()
 
         # Register custom event for main-thread dispatch
         custom_event = app.registerCustomEvent(CUSTOM_EVENT_ID)
@@ -80,11 +86,11 @@ def run(context):
 
 
 def stop(context):
-    global stop_thread, ui, custom_event, custom_event_handler, monitor_thread
+    global ui, custom_event, custom_event_handler, monitor_thread
     try:
-        stop_thread = True
+        _stop_event.set()
         if monitor_thread and monitor_thread.is_alive():
-            monitor_thread.join(timeout=0.5)
+            monitor_thread.join(timeout=1.0)
         if custom_event and custom_event_handler:
             custom_event.remove(custom_event_handler)
         if app:
@@ -107,8 +113,8 @@ def _handle_cmd_error(cmd_file, error_msg):
 
 def monitor_commands():
     """Background thread: watches for command files, dispatches to main thread via CustomEvent."""
-    global stop_thread
-    while not stop_thread:
+    dispatched_ids = set()  # Track dispatched commands to prevent re-dispatch
+    while not _stop_event.is_set():
         try:
             cmd_files = list(COMM_DIR.glob("command_*.json"))
             for cmd_file in cmd_files:
@@ -117,27 +123,35 @@ def monitor_commands():
                         command = json.load(f)
 
                     command_id = str(command.get('id', ''))
+                    if not command_id:
+                        _handle_cmd_error(cmd_file, "Command missing 'id' field")
+                        continue
+
+                    # Skip if already dispatched (file deletion may have failed)
+                    if command_id in dispatched_ids:
+                        continue
 
                     # Stash command for main-thread handler, then fire event
                     with _pending_lock:
                         _pending_commands[command_id] = command
 
                     app.fireCustomEvent(CUSTOM_EVENT_ID, command_id)
+                    dispatched_ids.add(command_id)
 
                     # Clean up the command file after dispatching
                     try:
                         cmd_file.unlink()
+                        dispatched_ids.discard(command_id)
                     except Exception:
-                        pass
+                        pass  # File stays; dispatched_ids prevents re-dispatch
 
                 except json.JSONDecodeError as e:
                     _handle_cmd_error(cmd_file, f"Malformed command JSON: {e}")
                 except Exception as e:
                     _handle_cmd_error(cmd_file, f"Command processing error: {e}")
-            time.sleep(0.1)
         except Exception:
             traceback.print_exc()
-            time.sleep(0.1)  # Prevent tight-loop on persistent errors
+        _stop_event.wait(0.1)  # Sleep with immediate wake on stop
 
 
 def execute_command(command):

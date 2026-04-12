@@ -38,7 +38,7 @@ pip install mcp
 
 # Clone this repository (or download ZIP)
 git clone https://github.com/markwoitaszek/ClaudeFusion360MCP.git
-cd fusion360-mcp
+cd ClaudeFusion360MCP
 ```
 
 ### Step 2: Install the Fusion 360 Add-in

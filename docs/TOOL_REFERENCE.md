@@ -460,7 +460,7 @@ batch([
 
 ---
 
-*Fusion 360 MCP Reference v4.0*
+*Fusion 360 MCP Reference v7.2*
 
 ---
 

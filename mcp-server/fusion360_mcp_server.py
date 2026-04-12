@@ -34,15 +34,14 @@ import time
 from pathlib import Path
 
 COMM_DIR = Path.home() / "fusion_mcp_comm"
-COMM_DIR.mkdir(mode=0o700, exist_ok=True)
 
-# Safe directories for export/import operations.
+# Safe directories for export/import operations (pre-resolved at startup).
 # Paths must resolve to a subdirectory of one of these directories.
 # Customize this list for your deployment context.
 SAFE_EXPORT_DIRS = [
-    Path.home() / "Desktop",
-    Path.home() / "Downloads",
-    Path.home() / "Documents",
+    (Path.home() / "Desktop").resolve(),
+    (Path.home() / "Downloads").resolve(),
+    (Path.home() / "Documents").resolve(),
 ]
 
 
@@ -70,7 +69,7 @@ def validate_filepath(filepath: str, allowed_extensions: list[str] | None = None
 
     # Check that the resolved path is under at least one safe directory
     is_safe = any(
-        resolved.is_relative_to(safe_dir.resolve())
+        resolved.is_relative_to(safe_dir)
         for safe_dir in SAFE_EXPORT_DIRS
     )
     if not is_safe:
@@ -98,26 +97,32 @@ def send_fusion_command(tool_name: str, params: dict) -> dict:
     timestamp = int(time.time() * 1000)
     cmd_file = COMM_DIR / f"command_{timestamp}.json"
     resp_file = COMM_DIR / f"response_{timestamp}.json"
-    
-    with open(cmd_file, 'w') as f:
+
+    # Atomic write: write to .tmp then rename so the add-in never reads partial JSON
+    tmp_file = COMM_DIR / f"command_{timestamp}.tmp"
+    with open(tmp_file, 'w') as f:
         json.dump({"type": "tool", "name": tool_name, "params": params, "id": timestamp}, f)
-    
+    os.replace(tmp_file, cmd_file)
+
     # 900 iterations at 50ms = 45s timeout
-    for _ in range(900):
-        time.sleep(0.05)  # 50ms polling
-        if resp_file.exists():
-            with open(resp_file, 'r') as f:
-                result = json.load(f)
-            try:
-                cmd_file.unlink()
-                resp_file.unlink()
-            except Exception:
-                pass  # File cleanup failure is non-critical
-            if not result.get("success"):
-                raise Exception(result.get("error", "Unknown error"))
-            return result
-    
-    raise Exception("Timeout after 45s - is Fusion 360 running with FusionMCP add-in?")
+    try:
+        for _ in range(900):
+            time.sleep(0.05)  # 50ms polling
+            if resp_file.exists():
+                with open(resp_file, 'r') as f:
+                    result = json.load(f)
+                resp_file.unlink(missing_ok=True)
+                cmd_file.unlink(missing_ok=True)
+                if not result.get("success"):
+                    raise Exception(result.get("error", "Unknown error"))
+                return result
+        raise Exception(
+            f"Timeout after 45s waiting for '{tool_name}' — "
+            f"is Fusion 360 running with FusionMCP add-in?"
+        )
+    finally:
+        # Clean up stale command file on timeout or error to prevent re-processing
+        cmd_file.unlink(missing_ok=True)
 
 # =============================================================================
 # BATCH OPERATIONS
@@ -688,4 +693,6 @@ def import_mesh(filepath: str, unit: str = "mm") -> dict:
 # =============================================================================
 
 if __name__ == "__main__":
+    COMM_DIR.mkdir(mode=0o700, exist_ok=True)
+    os.chmod(COMM_DIR, 0o700)  # Enforce permissions even on existing directory
     mcp.run()
