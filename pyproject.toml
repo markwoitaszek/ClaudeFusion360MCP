@@ -1,0 +1,35 @@
+[project]
+name = "fusion360-mcp-server"
+version = "7.2.0"
+description = "Control Autodesk Fusion 360 with Claude AI through the Model Context Protocol"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-cov>=4",
+    "ruff>=0.4",
+    "black>=24",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_validate_filepath.py" = ["E402"]
+
+[tool.black]
+target-version = ["py310"]
+line-length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
