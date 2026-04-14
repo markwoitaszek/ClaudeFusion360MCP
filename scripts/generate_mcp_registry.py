@@ -33,9 +33,16 @@ class ToolIntrospector:
         self._mock_installed = False
 
     def _install_mock(self):
-        """Install a transparent FastMCP mock into sys.modules."""
+        """Install a transparent FastMCP mock into sys.modules.
+
+        Saves original sys.modules entries and restores them after extraction
+        via cleanup_mock() to avoid polluting the process module cache.
+        """
         if self._mock_installed:
             return
+
+        # Save originals for cleanup
+        self._saved_modules = {k: sys.modules.get(k) for k in ("mcp", "mcp.server", "mcp.server.fastmcp")}
 
         introspector = self
 
@@ -71,36 +78,55 @@ class ToolIntrospector:
 
         self._mock_installed = True
 
+    def _cleanup_mock(self):
+        """Restore original sys.modules entries after introspection."""
+        if not hasattr(self, "_saved_modules"):
+            return
+        for key, original in self._saved_modules.items():
+            if original is None:
+                sys.modules.pop(key, None)
+            else:
+                sys.modules[key] = original
+
     def _register_tool(self, fn):
         """Extract metadata from a decorated tool function."""
         sig = inspect.signature(fn)
         params = {}
+        required = []
         for name, param in sig.parameters.items():
             param_info: dict = {"type": _python_type_to_json(param.annotation)}
             if param.default is not inspect.Parameter.empty:
                 param_info["default"] = param.default
+            else:
+                required.append(name)
             params[name] = param_info
 
         doc = inspect.getdoc(fn) or ""
         summary = doc.split("\n\n")[0].strip() if doc else ""
 
-        self._tools.append(
-            {
-                "name": fn.__name__,
-                "description": summary,
-                "parameters": params,
-            }
-        )
+        tool_entry: dict = {
+            "name": fn.__name__,
+            "description": summary,
+            "parameters": params,
+        }
+        if required:
+            tool_entry["required"] = required
+
+        self._tools.append(tool_entry)
 
     def extract_tools(self) -> list[dict]:
         """Import all tool modules and return extracted tool metadata."""
+        os.environ.setdefault("MCP_REGISTRY_MODE", "1")
         self._install_mock()
 
-        # Import tool modules — the decorators fire and register tools
-        import tools.assembly  # noqa: F401
-        import tools.features  # noqa: F401
-        import tools.io  # noqa: F401
-        import tools.sketch  # noqa: F401
+        try:
+            # Import tool modules — the decorators fire and register tools
+            import tools.assembly  # noqa: F401
+            import tools.features  # noqa: F401
+            import tools.io  # noqa: F401
+            import tools.sketch  # noqa: F401
+        finally:
+            self._cleanup_mock()
 
         return sorted(self._tools, key=lambda t: t["name"])
 
@@ -144,14 +170,25 @@ def _read_version() -> str:
         return tomllib.loads(text)["project"]["version"]
     except ImportError:
         match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
-        return match.group(1) if match else "0.0.0"
+        if not match:
+            raise ValueError(f"Could not parse version from {PROJECT_ROOT / 'pyproject.toml'}")
+        return match.group(1)
 
 
-def main():
+def main() -> int:
     check_mode = "--check" in sys.argv
 
-    introspector = ToolIntrospector()
-    registry = introspector.generate_registry()
+    try:
+        introspector = ToolIntrospector()
+        registry = introspector.generate_registry()
+    except ImportError as e:
+        print(f"FAIL: Could not import tool modules: {e}")
+        print("  Ensure all dependencies are installed (pip install -e .)")
+        return 1
+    except Exception as e:
+        print(f"FAIL: Registry generation error: {e}")
+        return 1
+
     generated = json.dumps(registry, indent=2) + "\n"
 
     if check_mode:
@@ -172,6 +209,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # Suppress ipc module side-effects during introspection
-    os.environ.setdefault("MCP_REGISTRY_MODE", "1")
     sys.exit(main())

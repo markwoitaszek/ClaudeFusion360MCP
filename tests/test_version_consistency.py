@@ -39,3 +39,20 @@ def test_manifest_version_matches_pyproject():
 def test_version_is_valid_semver():
     version = _read_pyproject_version()
     assert re.match(r"^\d+\.\d+\.\d+$", version), f"Version {version} is not valid semver (X.Y.Z)"
+
+
+def test_regex_fallback_reads_correct_version(monkeypatch):
+    """Verify version parsing works when tomllib is unavailable (Python < 3.11)."""
+    import builtins
+
+    original_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "tomllib":
+            raise ImportError("mocked: tomllib unavailable")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", mock_import)
+    # Re-read version using the regex fallback path
+    version = _read_pyproject_version()
+    assert re.match(r"^\d+\.\d+\.\d+$", version), f"Regex fallback returned invalid version: {version}"

@@ -14,7 +14,18 @@ Architecture: FastMCP with include_router for modular tool registration.
 IPC: File-based JSON in ~/fusion_mcp_comm/ with session token (see ipc.py).
 """
 
+import logging
 import os
+
+# Configure logging at module level so it applies regardless of invocation method
+_valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+_log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+_log_level = _log_level if _log_level in _valid_levels else "INFO"
+logging.basicConfig(
+    level=getattr(logging, _log_level, logging.INFO),
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
 
 try:
     from importlib.metadata import version as _pkg_version
@@ -23,12 +34,12 @@ try:
 except Exception:
     __version__ = "0.0.0-dev"
 
-from ipc import initialize_ipc
-from mcp.server.fastmcp import FastMCP
-from tools.assembly import router as assembly_router
-from tools.features import router as features_router
-from tools.io import router as io_router
-from tools.sketch import router as sketch_router
+from ipc import initialize_ipc  # noqa: E402
+from mcp.server.fastmcp import FastMCP  # noqa: E402
+from tools.assembly import router as assembly_router  # noqa: E402
+from tools.features import router as features_router  # noqa: E402
+from tools.io import router as io_router  # noqa: E402
+from tools.sketch import router as sketch_router  # noqa: E402
 
 mcp = FastMCP(f"Fusion 360 v{__version__}")
 
@@ -39,16 +50,6 @@ mcp.include_router(assembly_router)
 mcp.include_router(io_router)
 
 if __name__ == "__main__":
-    import logging
-
-    _valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
-    log_level = log_level if log_level in _valid_levels else "INFO"
-    logging.basicConfig(
-        level=getattr(logging, log_level, logging.INFO),
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-        datefmt="%Y-%m-%dT%H:%M:%S",
-    )
     logging.getLogger(__name__).info("Fusion 360 MCP Server v%s starting", __version__)
     initialize_ipc()
     mcp.run()

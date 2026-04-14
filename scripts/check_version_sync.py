@@ -30,6 +30,13 @@ def read_pyproject_version(path: Path) -> str:
         data = tomllib.loads(text)
         return data["project"]["version"]
     except ImportError:
+        import warnings
+
+        warnings.warn(
+            "tomllib unavailable (Python < 3.11); using regex fallback which may "
+            "match a version= line outside [project] if one exists",
+            stacklevel=2,
+        )
         match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
         if not match:
             raise ValueError(f"Could not parse version from {path}")
@@ -37,6 +44,7 @@ def read_pyproject_version(path: Path) -> str:
 
 
 def read_version_file(path: Path) -> str:
+    """Read version from a plain VERSION file (strips whitespace)."""
     return path.read_text().strip()
 
 

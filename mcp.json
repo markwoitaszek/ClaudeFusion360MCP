@@ -11,7 +11,10 @@
         "commands": {
           "type": "array"
         }
-      }
+      },
+      "required": [
+        "commands"
+      ]
     },
     {
       "name": "chamfer",
@@ -28,7 +31,10 @@
           "type": "integer",
           "default": null
         }
-      }
+      },
+      "required": [
+        "distance"
+      ]
     },
     {
       "name": "check_interference",
@@ -53,7 +59,11 @@
           "type": "boolean",
           "default": false
         }
-      }
+      },
+      "required": [
+        "target_body",
+        "tool_bodies"
+      ]
     },
     {
       "name": "create_component",
@@ -126,7 +136,10 @@
           "type": "number",
           "default": 0
         }
-      }
+      },
+      "required": [
+        "plane"
+      ]
     },
     {
       "name": "create_slider_joint",
@@ -235,7 +248,10 @@
           "type": "number",
           "default": 1
         }
-      }
+      },
+      "required": [
+        "angle"
+      ]
     },
     {
       "name": "draw_arc",
@@ -259,7 +275,15 @@
         "end_y": {
           "type": "number"
         }
-      }
+      },
+      "required": [
+        "center_x",
+        "center_y",
+        "start_x",
+        "start_y",
+        "end_x",
+        "end_y"
+      ]
     },
     {
       "name": "draw_circle",
@@ -274,7 +298,12 @@
         "radius": {
           "type": "number"
         }
-      }
+      },
+      "required": [
+        "center_x",
+        "center_y",
+        "radius"
+      ]
     },
     {
       "name": "draw_line",
@@ -292,7 +321,13 @@
         "y2": {
           "type": "number"
         }
-      }
+      },
+      "required": [
+        "x1",
+        "y1",
+        "x2",
+        "y2"
+      ]
     },
     {
       "name": "draw_polygon",
@@ -311,7 +346,12 @@
           "type": "integer",
           "default": 6
         }
-      }
+      },
+      "required": [
+        "center_x",
+        "center_y",
+        "radius"
+      ]
     },
     {
       "name": "draw_rectangle",
@@ -329,7 +369,13 @@
         "y2": {
           "type": "number"
         }
-      }
+      },
+      "required": [
+        "x1",
+        "y1",
+        "x2",
+        "y2"
+      ]
     },
     {
       "name": "export_3mf",
@@ -338,7 +384,10 @@
         "filepath": {
           "type": "string"
         }
-      }
+      },
+      "required": [
+        "filepath"
+      ]
     },
     {
       "name": "export_step",
@@ -347,7 +396,10 @@
         "filepath": {
           "type": "string"
         }
-      }
+      },
+      "required": [
+        "filepath"
+      ]
     },
     {
       "name": "export_stl",
@@ -356,7 +408,10 @@
         "filepath": {
           "type": "string"
         }
-      }
+      },
+      "required": [
+        "filepath"
+      ]
     },
     {
       "name": "extrude",
@@ -373,7 +428,10 @@
           "type": "number",
           "default": 0
         }
-      }
+      },
+      "required": [
+        "distance"
+      ]
     },
     {
       "name": "fillet",
@@ -390,7 +448,10 @@
           "type": "integer",
           "default": null
         }
-      }
+      },
+      "required": [
+        "radius"
+      ]
     },
     {
       "name": "finish_sketch",
@@ -428,7 +489,10 @@
           "type": "string",
           "default": "mm"
         }
-      }
+      },
+      "required": [
+        "filepath"
+      ]
     },
     {
       "name": "list_components",
@@ -520,7 +584,10 @@
           "type": "integer",
           "default": null
         }
-      }
+      },
+      "required": [
+        "count"
+      ]
     },
     {
       "name": "pattern_rectangular",
@@ -544,7 +611,11 @@
           "type": "integer",
           "default": null
         }
-      }
+      },
+      "required": [
+        "x_count",
+        "x_spacing"
+      ]
     },
     {
       "name": "revolve",
@@ -557,7 +628,10 @@
           "type": "string",
           "default": "Y"
         }
-      }
+      },
+      "required": [
+        "angle"
+      ]
     },
     {
       "name": "rotate_component",
@@ -590,7 +664,10 @@
           "type": "number",
           "default": 0
         }
-      }
+      },
+      "required": [
+        "angle"
+      ]
     },
     {
       "name": "set_joint_angle",
@@ -603,7 +680,10 @@
           "type": "integer",
           "default": null
         }
-      }
+      },
+      "required": [
+        "angle"
+      ]
     },
     {
       "name": "set_joint_distance",
@@ -616,7 +696,10 @@
           "type": "integer",
           "default": null
         }
-      }
+      },
+      "required": [
+        "distance"
+      ]
     },
     {
       "name": "shell",
@@ -633,7 +716,10 @@
           "type": "integer",
           "default": null
         }
-      }
+      },
+      "required": [
+        "thickness"
+      ]
     },
     {
       "name": "undo",

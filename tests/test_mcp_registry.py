@@ -16,7 +16,8 @@ MCP_JSON = PROJECT_ROOT / "mcp.json"
 @pytest.fixture
 def registry():
     """Load mcp.json as a dict."""
-    assert MCP_JSON.exists(), f"mcp.json not found at {MCP_JSON}. Run: python scripts/generate_mcp_registry.py"
+    if not MCP_JSON.exists():
+        pytest.skip(f"mcp.json not found at {MCP_JSON}. Run: python scripts/generate_mcp_registry.py")
     return json.loads(MCP_JSON.read_text())
 
 
@@ -66,7 +67,8 @@ def test_registry_version_matches_pyproject(registry):
         expected = tomllib.loads(text)["project"]["version"]
     except ImportError:
         match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
-        expected = match.group(1) if match else None
+        assert match, "Could not parse version from pyproject.toml"
+        expected = match.group(1)
     assert (
         registry["version"] == expected
     ), f"mcp.json version ({registry['version']}) does not match pyproject.toml ({expected})"

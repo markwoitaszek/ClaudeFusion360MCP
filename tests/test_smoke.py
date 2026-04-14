@@ -59,25 +59,22 @@ def test_tool_count_matches_registry():
         if hasattr(mod, "router") and hasattr(mod.router, "_tools"):
             all_tools.update(mod.router._tools)
 
+    assert len(all_tools) > 0, "No tools found in routers — conftest mock may not be wiring _tools correctly"
     assert (
         len(all_tools) == registry["tool_count"]
     ), f"Router tool count ({len(all_tools)}) does not match mcp.json ({registry['tool_count']})"
 
 
-def test_ipc_module_initializes(mock_comm_dir):
+def test_ipc_module_initializes(mock_comm_dir, monkeypatch):
     """Verify IPC initialization creates session token."""
     import ipc
 
-    original_comm_dir = ipc.COMM_DIR
-    try:
-        ipc.COMM_DIR = mock_comm_dir
-        ipc._session_token = None
-        ipc.initialize_ipc()
-        assert ipc._session_token is not None
-        assert len(ipc._session_token) == 32  # hex(16) = 32 chars
-        assert (mock_comm_dir / "session_token").exists()
-    finally:
-        ipc.COMM_DIR = original_comm_dir
+    monkeypatch.setattr(ipc, "COMM_DIR", mock_comm_dir)
+    monkeypatch.setattr(ipc, "_session_token", None)
+    ipc.initialize_ipc()
+    assert ipc._session_token is not None
+    assert len(ipc._session_token) == 32  # hex(16) = 32 chars
+    assert (mock_comm_dir / "session_token").exists()
 
 
 def test_validation_rejects_bad_plane():
@@ -109,8 +106,8 @@ def test_sketch_extrude_round_trip():
 
 
 @integration
-def test_component_move_rotate():
-    """Create a component and verify move/rotate operations."""
+def test_component_creation():
+    """Create a component and verify it succeeds."""
     from ipc import send_fusion_command
 
     result = send_fusion_command("create_component", {"name": "smoke_test_comp"})

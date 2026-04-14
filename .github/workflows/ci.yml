@@ -39,7 +39,7 @@ jobs:
           python-version: "3.10"
 
       - name: Install dependencies
-        run: pip install pytest pytest-cov
+        run: pip install pytest pytest-cov && pip install -e .
 
       - name: Check version consistency (LT-4)
         run: python scripts/check_version_sync.py
