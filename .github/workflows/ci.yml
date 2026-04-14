@@ -24,10 +24,10 @@ jobs:
         run: pip install ruff black
 
       - name: Ruff lint
-        run: ruff check mcp-server/ tests/
+        run: ruff check mcp-server/ tests/ scripts/
 
       - name: Black format check
-        run: black --check mcp-server/ tests/
+        run: black --check mcp-server/ tests/ scripts/
 
   test:
     runs-on: ubuntu-latest
@@ -40,6 +40,12 @@ jobs:
 
       - name: Install dependencies
         run: pip install pytest pytest-cov
+
+      - name: Check version consistency (LT-4)
+        run: python scripts/check_version_sync.py
+
+      - name: Check mcp.json freshness (LT-1)
+        run: python scripts/generate_mcp_registry.py --check
 
       - name: Run tests with coverage
         run: pytest tests/ -v --cov=mcp-server --cov-fail-under=50 --junitxml=test-results.xml

@@ -14,6 +14,8 @@ Architecture: FastMCP with include_router for modular tool registration.
 IPC: File-based JSON in ~/fusion_mcp_comm/ with session token (see ipc.py).
 """
 
+import os
+
 try:
     from importlib.metadata import version as _pkg_version
 
@@ -37,5 +39,16 @@ mcp.include_router(assembly_router)
 mcp.include_router(io_router)
 
 if __name__ == "__main__":
+    import logging
+
+    _valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    log_level = log_level if log_level in _valid_levels else "INFO"
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    )
+    logging.getLogger(__name__).info("Fusion 360 MCP Server v%s starting", __version__)
     initialize_ipc()
     mcp.run()
