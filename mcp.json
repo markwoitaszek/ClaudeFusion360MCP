@@ -1,0 +1,735 @@
+{
+  "name": "fusion360-mcp-server",
+  "version": "7.2.0",
+  "description": "Control Autodesk Fusion 360 with Claude AI through the Model Context Protocol",
+  "tool_count": 39,
+  "tools": [
+    {
+      "name": "batch",
+      "description": "Execute multiple Fusion commands in a single call - MUCH faster for complex operations.",
+      "parameters": {
+        "commands": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "commands"
+      ]
+    },
+    {
+      "name": "chamfer",
+      "description": "Add chamfers to edges of a body (units: cm).",
+      "parameters": {
+        "distance": {
+          "type": "number"
+        },
+        "edges": {
+          "type": "array",
+          "default": null
+        },
+        "body_index": {
+          "type": "integer",
+          "default": null
+        }
+      },
+      "required": [
+        "distance"
+      ]
+    },
+    {
+      "name": "check_interference",
+      "description": "Check if any components overlap (bounding box collision detection).",
+      "parameters": {}
+    },
+    {
+      "name": "combine",
+      "description": "Boolean operations: cut, join, or intersect bodies.",
+      "parameters": {
+        "target_body": {
+          "type": "integer"
+        },
+        "tool_bodies": {
+          "type": "array"
+        },
+        "operation": {
+          "type": "string",
+          "default": "cut"
+        },
+        "keep_tools": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "target_body",
+        "tool_bodies"
+      ]
+    },
+    {
+      "name": "create_component",
+      "description": "Convert the most recent body into a new component for assembly.",
+      "parameters": {
+        "name": {
+          "type": "string",
+          "default": null
+        }
+      }
+    },
+    {
+      "name": "create_revolute_joint",
+      "description": "Create a revolute (rotating) joint between two components.",
+      "parameters": {
+        "component1_index": {
+          "type": "integer",
+          "default": null
+        },
+        "component2_index": {
+          "type": "integer",
+          "default": null
+        },
+        "x": {
+          "type": "number",
+          "default": 0
+        },
+        "y": {
+          "type": "number",
+          "default": 0
+        },
+        "z": {
+          "type": "number",
+          "default": 0
+        },
+        "axis_x": {
+          "type": "number",
+          "default": 0
+        },
+        "axis_y": {
+          "type": "number",
+          "default": 0
+        },
+        "axis_z": {
+          "type": "number",
+          "default": 1
+        },
+        "min_angle": {
+          "type": "number",
+          "default": null
+        },
+        "max_angle": {
+          "type": "number",
+          "default": null
+        },
+        "flip": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    {
+      "name": "create_sketch",
+      "description": "Create a new sketch on a construction plane (XY, XZ, or YZ) and enter edit mode.",
+      "parameters": {
+        "plane": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "number",
+          "default": 0
+        }
+      },
+      "required": [
+        "plane"
+      ]
+    },
+    {
+      "name": "create_slider_joint",
+      "description": "Create a slider (linear) joint between two components.",
+      "parameters": {
+        "component1_index": {
+          "type": "integer",
+          "default": null
+        },
+        "component2_index": {
+          "type": "integer",
+          "default": null
+        },
+        "x": {
+          "type": "number",
+          "default": 0
+        },
+        "y": {
+          "type": "number",
+          "default": 0
+        },
+        "z": {
+          "type": "number",
+          "default": 0
+        },
+        "axis_x": {
+          "type": "number",
+          "default": 1
+        },
+        "axis_y": {
+          "type": "number",
+          "default": 0
+        },
+        "axis_z": {
+          "type": "number",
+          "default": 0
+        },
+        "min_distance": {
+          "type": "number",
+          "default": null
+        },
+        "max_distance": {
+          "type": "number",
+          "default": null
+        }
+      }
+    },
+    {
+      "name": "delete_body",
+      "description": "Delete a body by index.",
+      "parameters": {
+        "body_index": {
+          "type": "integer",
+          "default": null
+        }
+      }
+    },
+    {
+      "name": "delete_component",
+      "description": "Delete a component by name or index.",
+      "parameters": {
+        "name": {
+          "type": "string",
+          "default": null
+        },
+        "index": {
+          "type": "integer",
+          "default": null
+        }
+      }
+    },
+    {
+      "name": "delete_sketch",
+      "description": "Delete a sketch by index.",
+      "parameters": {
+        "sketch_index": {
+          "type": "integer",
+          "default": null
+        }
+      }
+    },
+    {
+      "name": "draft",
+      "description": "Apply draft angles to faces for injection molding (angle in degrees).",
+      "parameters": {
+        "angle": {
+          "type": "number"
+        },
+        "faces": {
+          "type": "array",
+          "default": null
+        },
+        "body_index": {
+          "type": "integer",
+          "default": null
+        },
+        "pull_x": {
+          "type": "number",
+          "default": 0
+        },
+        "pull_y": {
+          "type": "number",
+          "default": 0
+        },
+        "pull_z": {
+          "type": "number",
+          "default": 1
+        }
+      },
+      "required": [
+        "angle"
+      ]
+    },
+    {
+      "name": "draw_arc",
+      "description": "Draw an arc in the active sketch (units: cm).",
+      "parameters": {
+        "center_x": {
+          "type": "number"
+        },
+        "center_y": {
+          "type": "number"
+        },
+        "start_x": {
+          "type": "number"
+        },
+        "start_y": {
+          "type": "number"
+        },
+        "end_x": {
+          "type": "number"
+        },
+        "end_y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "center_x",
+        "center_y",
+        "start_x",
+        "start_y",
+        "end_x",
+        "end_y"
+      ]
+    },
+    {
+      "name": "draw_circle",
+      "description": "Draw a circle in the active sketch (units: cm).",
+      "parameters": {
+        "center_x": {
+          "type": "number"
+        },
+        "center_y": {
+          "type": "number"
+        },
+        "radius": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "center_x",
+        "center_y",
+        "radius"
+      ]
+    },
+    {
+      "name": "draw_line",
+      "description": "Draw a straight line in the active sketch (units: cm).",
+      "parameters": {
+        "x1": {
+          "type": "number"
+        },
+        "y1": {
+          "type": "number"
+        },
+        "x2": {
+          "type": "number"
+        },
+        "y2": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x1",
+        "y1",
+        "x2",
+        "y2"
+      ]
+    },
+    {
+      "name": "draw_polygon",
+      "description": "Draw a regular polygon in the active sketch (units: cm). Default is hexagon.",
+      "parameters": {
+        "center_x": {
+          "type": "number"
+        },
+        "center_y": {
+          "type": "number"
+        },
+        "radius": {
+          "type": "number"
+        },
+        "sides": {
+          "type": "integer",
+          "default": 6
+        }
+      },
+      "required": [
+        "center_x",
+        "center_y",
+        "radius"
+      ]
+    },
+    {
+      "name": "draw_rectangle",
+      "description": "Draw a rectangle in the active sketch (units: cm).",
+      "parameters": {
+        "x1": {
+          "type": "number"
+        },
+        "y1": {
+          "type": "number"
+        },
+        "x2": {
+          "type": "number"
+        },
+        "y2": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x1",
+        "y1",
+        "x2",
+        "y2"
+      ]
+    },
+    {
+      "name": "export_3mf",
+      "description": "Export the design as 3MF file (modern 3D printing format).\nFilepath must be within allowed directories (~/Desktop, ~/Downloads, ~/Documents).",
+      "parameters": {
+        "filepath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "filepath"
+      ]
+    },
+    {
+      "name": "export_step",
+      "description": "Export the design as STEP file (CAD standard).\nFilepath must be within allowed directories (~/Desktop, ~/Downloads, ~/Documents).",
+      "parameters": {
+        "filepath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "filepath"
+      ]
+    },
+    {
+      "name": "export_stl",
+      "description": "Export the design as STL file for 3D printing.\nFilepath must be within allowed directories (~/Desktop, ~/Downloads, ~/Documents).",
+      "parameters": {
+        "filepath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "filepath"
+      ]
+    },
+    {
+      "name": "extrude",
+      "description": "Extrude the most recent sketch profile (units: cm).",
+      "parameters": {
+        "distance": {
+          "type": "number"
+        },
+        "profile_index": {
+          "type": "integer",
+          "default": 0
+        },
+        "taper_angle": {
+          "type": "number",
+          "default": 0
+        }
+      },
+      "required": [
+        "distance"
+      ]
+    },
+    {
+      "name": "fillet",
+      "description": "Add fillets to edges of a body (units: cm).",
+      "parameters": {
+        "radius": {
+          "type": "number"
+        },
+        "edges": {
+          "type": "array",
+          "default": null
+        },
+        "body_index": {
+          "type": "integer",
+          "default": null
+        }
+      },
+      "required": [
+        "radius"
+      ]
+    },
+    {
+      "name": "finish_sketch",
+      "description": "Exit sketch editing mode.",
+      "parameters": {}
+    },
+    {
+      "name": "fit_view",
+      "description": "Fit the viewport to show all geometry.",
+      "parameters": {}
+    },
+    {
+      "name": "get_body_info",
+      "description": "Get detailed information about a body including all edges and faces.",
+      "parameters": {
+        "body_index": {
+          "type": "integer",
+          "default": null
+        }
+      }
+    },
+    {
+      "name": "get_design_info",
+      "description": "Get information about the current design (name, body count, sketch count, component count).",
+      "parameters": {}
+    },
+    {
+      "name": "import_mesh",
+      "description": "Import STL, OBJ, or 3MF mesh file. Units: mm, cm, or in.\nFilepath must be within allowed directories (~/Desktop, ~/Downloads, ~/Documents).",
+      "parameters": {
+        "filepath": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string",
+          "default": "mm"
+        }
+      },
+      "required": [
+        "filepath"
+      ]
+    },
+    {
+      "name": "list_components",
+      "description": "List all components with names, positions, and bounding boxes.",
+      "parameters": {}
+    },
+    {
+      "name": "measure",
+      "description": "Measure dimensions of bodies, edges, or faces.",
+      "parameters": {
+        "measurement_type": {
+          "type": "string",
+          "default": "body"
+        },
+        "body_index": {
+          "type": "integer",
+          "default": null
+        },
+        "edge_index": {
+          "type": "integer",
+          "default": null
+        },
+        "face_index": {
+          "type": "integer",
+          "default": null
+        }
+      }
+    },
+    {
+      "name": "mirror",
+      "description": "Create a mirrored copy of a body.",
+      "parameters": {
+        "plane": {
+          "type": "string",
+          "default": "YZ"
+        },
+        "body_index": {
+          "type": "integer",
+          "default": null
+        }
+      }
+    },
+    {
+      "name": "move_component",
+      "description": "Move a component to a new position (units: cm).",
+      "parameters": {
+        "x": {
+          "type": "number",
+          "default": 0
+        },
+        "y": {
+          "type": "number",
+          "default": 0
+        },
+        "z": {
+          "type": "number",
+          "default": 0
+        },
+        "index": {
+          "type": "integer",
+          "default": null
+        },
+        "name": {
+          "type": "string",
+          "default": null
+        },
+        "absolute": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    {
+      "name": "pattern_circular",
+      "description": "Create a circular (radial) pattern of a body.",
+      "parameters": {
+        "count": {
+          "type": "integer"
+        },
+        "angle": {
+          "type": "number",
+          "default": 360
+        },
+        "axis": {
+          "type": "string",
+          "default": "Z"
+        },
+        "body_index": {
+          "type": "integer",
+          "default": null
+        }
+      },
+      "required": [
+        "count"
+      ]
+    },
+    {
+      "name": "pattern_rectangular",
+      "description": "Create a rectangular (linear) pattern of a body (spacing in cm).",
+      "parameters": {
+        "x_count": {
+          "type": "integer"
+        },
+        "x_spacing": {
+          "type": "number"
+        },
+        "y_count": {
+          "type": "integer",
+          "default": 1
+        },
+        "y_spacing": {
+          "type": "number",
+          "default": 0
+        },
+        "body_index": {
+          "type": "integer",
+          "default": null
+        }
+      },
+      "required": [
+        "x_count",
+        "x_spacing"
+      ]
+    },
+    {
+      "name": "revolve",
+      "description": "Revolve the most recent sketch profile around a construction axis (degrees).",
+      "parameters": {
+        "angle": {
+          "type": "number"
+        },
+        "axis": {
+          "type": "string",
+          "default": "Y"
+        }
+      },
+      "required": [
+        "angle"
+      ]
+    },
+    {
+      "name": "rotate_component",
+      "description": "Rotate a component around an axis (angle in degrees).",
+      "parameters": {
+        "angle": {
+          "type": "number"
+        },
+        "axis": {
+          "type": "string",
+          "default": "Z"
+        },
+        "index": {
+          "type": "integer",
+          "default": null
+        },
+        "name": {
+          "type": "string",
+          "default": null
+        },
+        "origin_x": {
+          "type": "number",
+          "default": 0
+        },
+        "origin_y": {
+          "type": "number",
+          "default": 0
+        },
+        "origin_z": {
+          "type": "number",
+          "default": 0
+        }
+      },
+      "required": [
+        "angle"
+      ]
+    },
+    {
+      "name": "set_joint_angle",
+      "description": "Animate a revolute joint to a specific angle (degrees).",
+      "parameters": {
+        "angle": {
+          "type": "number"
+        },
+        "joint_index": {
+          "type": "integer",
+          "default": null
+        }
+      },
+      "required": [
+        "angle"
+      ]
+    },
+    {
+      "name": "set_joint_distance",
+      "description": "Animate a slider joint to a specific distance (cm).",
+      "parameters": {
+        "distance": {
+          "type": "number"
+        },
+        "joint_index": {
+          "type": "integer",
+          "default": null
+        }
+      },
+      "required": [
+        "distance"
+      ]
+    },
+    {
+      "name": "shell",
+      "description": "Create a hollow shell from a solid body (units: cm).",
+      "parameters": {
+        "thickness": {
+          "type": "number"
+        },
+        "faces_to_remove": {
+          "type": "array",
+          "default": null
+        },
+        "body_index": {
+          "type": "integer",
+          "default": null
+        }
+      },
+      "required": [
+        "thickness"
+      ]
+    },
+    {
+      "name": "undo",
+      "description": "Undo recent operations.",
+      "parameters": {
+        "count": {
+          "type": "integer",
+          "default": 1
+        }
+      }
+    }
+  ]
+}

@@ -6,7 +6,7 @@
     "description": {
         "": "MCP Server for Fusion 360"
     },
-    "version": "2.0.0",
+    "version": "7.2.0",
     "runOnStartup": true,
     "supportedOS": "windows|mac",
     "editEnabled": true

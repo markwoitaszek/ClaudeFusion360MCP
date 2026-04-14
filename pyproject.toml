@@ -33,3 +33,6 @@ line-length = 120
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
+markers = [
+    "integration: requires live Fusion 360 instance (skip without adsk module)",
+]

@@ -45,7 +45,7 @@ Comprehensive audit of the ClaudeFusion360MCP repository to verify MCP legitimac
 
 ### P2 — Medium (5 findings)
 
-12. **No logging**: Neither component logs anything.
+12. **~~No logging~~**: **RESOLVED (LT-3)** — Server has logging.basicConfig with LOG_LEVEL env var; add-in has RotatingFileHandler with per-command timing (tool_name, cmd_id, elapsed_ms).
 13. **No health check**: No way to verify add-in is running.
 14. **No minimum Fusion version**: Manifest missing minimumVersion.
 15. **~~`type` shadows builtin~~** ~~(fusion360_mcp_server.py:349)~~: **RESOLVED** — Renamed to `measurement_type` in tools/io.py.
@@ -55,7 +55,7 @@ Comprehensive audit of the ClaudeFusion360MCP repository to verify MCP legitimac
 
 - README lists sweep, loft, split_body, draw_slot (none exist in code)
 - KNOWN_ISSUES references batch_operations() (actual: batch())
-- Version numbers: server v7.2, KNOWN_ISSUES v8.2, TOOL_REFERENCE v7.0.0/v4.0, manifest v2.0.0
+- ~~Version numbers: server v7.2, KNOWN_ISSUES v8.2, TOOL_REFERENCE v7.0.0/v4.0, manifest v2.0.0~~ — **RESOLVED (LT-4)** — All components unified to 7.2.0 from pyproject.toml; CI drift check enforces parity
 - README has duplicated sentence on line 15
 - README clone URL has YOUR_USERNAME placeholder
 
@@ -90,30 +90,30 @@ Comprehensive audit of the ClaudeFusion360MCP repository to verify MCP legitimac
 
 ### Long-Term (Weeks)
 
-| ID   | Requirement                                     | Type    | Effort | Status  |
-| ---- | ----------------------------------------------- | ------- | ------ | ------- |
-| LT-1 | Add MCP registry metadata (mcp.json, schemas)   | Feature | Low    | Pending |
-| LT-2 | Create one-command installer                    | Feature | Medium | Pending |
-| LT-3 | Add structured logging to both components       | Quality | Low    | Pending |
-| LT-4 | Enforce consistent semver across all components | Quality | Low    | Pending |
-| LT-5 | Integration smoke tests against live Fusion 360 | Quality | Medium | Pending |
+| ID   | Requirement                                         | Type    | Effort | Status |
+| ---- | --------------------------------------------------- | ------- | ------ | ------ |
+| LT-1 | ~~Add MCP registry metadata (mcp.json, schemas)~~   | Feature | Low    | Done   |
+| LT-2 | ~~Create one-command installer~~                    | Feature | Medium | Done   |
+| LT-3 | ~~Add structured logging to both components~~       | Quality | Low    | Done   |
+| LT-4 | ~~Enforce consistent semver across all components~~ | Quality | Low    | Done   |
+| LT-5 | ~~Integration smoke tests against live Fusion 360~~ | Quality | Medium | Done   |
 
 ### New Requirements Discovered
 
-| ID    | Requirement                                       | Type    | Status  | Notes                                                                                                                                                                                                                 |
-| ----- | ------------------------------------------------- | ------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NR-1  | IPC protocol versioning                           | Quality | Pending |                                                                                                                                                                                                                       |
-| NR-2  | Fusion lifecycle handling (graceful cleanup)      | Quality | Pending |                                                                                                                                                                                                                       |
-| NR-3  | High-quality tool descriptions for Claude         | Quality | Pending |                                                                                                                                                                                                                       |
-| NR-4  | ~~Export tools must return actual file path~~     | Feature | Done    | MT-1: export handlers return filepath                                                                                                                                                                                 |
-| NR-5  | ~~Add list_bodies/get_model_state tool~~          | Feature | Done    | MT-1: get_body_info handler implemented                                                                                                                                                                               |
-| NR-6  | Add ping() health check tool                      | Feature | Pending |                                                                                                                                                                                                                       |
-| NR-7  | ~~Startup assertion logging unimplemented tools~~ | Quality | Done    | Registry pattern ensures parity                                                                                                                                                                                       |
-| NR-8  | Command file TTL (skip files older than 60s)      | Quality | Pending |                                                                                                                                                                                                                       |
-| NR-9  | Minimum Fusion 360 version check                  | Quality | Pending |                                                                                                                                                                                                                       |
-| NR-10 | ~~Implement offset in create_sketch handler~~     | Feature | Done    | MT-1: offset creates construction plane                                                                                                                                                                               |
-| NR-11 | ~~Implement profile_index in extrude handler~~    | Feature | Done    | MT-1: profile_index with bounds check                                                                                                                                                                                 |
-| NR-12 | Integration smoke tests against live Fusion 360   | Quality | Pending | PR #9 review found 3 P0 bugs (setToRotation, joint self-geometry, invalid finish_sketch) hidden by mock IPC. Smoke suite should cover: sketch→extrude, move→rotate, joint creation, export round-trips. Not CI-gated. |
+| ID    | Requirement                                         | Type    | Status  | Notes                                                                                                                                                               |
+| ----- | --------------------------------------------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NR-1  | IPC protocol versioning                             | Quality | Pending |                                                                                                                                                                     |
+| NR-2  | Fusion lifecycle handling (graceful cleanup)        | Quality | Pending |                                                                                                                                                                     |
+| NR-3  | High-quality tool descriptions for Claude           | Quality | Pending |                                                                                                                                                                     |
+| NR-4  | ~~Export tools must return actual file path~~       | Feature | Done    | MT-1: export handlers return filepath                                                                                                                               |
+| NR-5  | ~~Add list_bodies/get_model_state tool~~            | Feature | Done    | MT-1: get_body_info handler implemented                                                                                                                             |
+| NR-6  | Add ping() health check tool                        | Feature | Pending |                                                                                                                                                                     |
+| NR-7  | ~~Startup assertion logging unimplemented tools~~   | Quality | Done    | Registry pattern ensures parity                                                                                                                                     |
+| NR-8  | Command file TTL (skip files older than 60s)        | Quality | Pending |                                                                                                                                                                     |
+| NR-9  | Minimum Fusion 360 version check                    | Quality | Pending |                                                                                                                                                                     |
+| NR-10 | ~~Implement offset in create_sketch handler~~       | Feature | Done    | MT-1: offset creates construction plane                                                                                                                             |
+| NR-11 | ~~Implement profile_index in extrude handler~~      | Feature | Done    | MT-1: profile_index with bounds check                                                                                                                               |
+| NR-12 | ~~Integration smoke tests against live Fusion 360~~ | Quality | Done    | LT-5: tests/test_smoke.py with 4 live scenarios (sketch→extrude, component move, export round-trip, design info query) gated by FUSION_SMOKE_TESTS=1. Not CI-gated. |
 
 ## Risk Assessment
 
@@ -123,13 +123,15 @@ Comprehensive audit of the ClaudeFusion360MCP repository to verify MCP legitimac
 | User trust loss from phantom tools        | High       | High     | **Resolved (MT-1)** — 39/39 handlers   |
 | Prompt injection → malicious export path  | Medium     | High     | **Resolved (MT-3)** — token + path val |
 | Stale command replay                      | Medium     | High     | **Resolved (MT-3)** — session token    |
-| Semantic API bugs hidden by mock boundary | High       | High     | Open (LT-5, NR-12)                     |
-| Server/add-in version drift               | Medium     | Medium   | Open                                   |
-| First-time installer abandonment          | High       | Medium   | Open                                   |
+| Semantic API bugs hidden by mock boundary | High       | High     | **Mitigated (LT-5)** — smoke tests     |
+| Server/add-in version drift               | Medium     | Medium   | **Resolved (LT-4)** — CI drift check   |
+| First-time installer abandonment          | High       | Medium   | **Mitigated (LT-2)** — install.py      |
 
 ## Recommended Next Steps
 
-1. Run `/vsify-me:feature-design` with ST-1 through ST-4 to implement critical fixes
-2. Use Context7 MCP (/ipendle/autodesk-fusion-api-documentation) for MT-1 implementation reference
-3. Run `/vsify-me:adr detect` to capture threading fix and IPC hardening as new ADRs
-4. Run `/vsify-me:ux-design` if a configuration UI is planned for export path allowlisting
+All Short-Term, Medium-Term, and Long-Term requirements are complete. Remaining work:
+
+1. Implement remaining New Requirements: NR-1 (IPC versioning), NR-2 (lifecycle handling), NR-3 (tool descriptions), NR-6 (health check), NR-8 (command TTL), NR-9 (Fusion version check)
+2. Run `FUSION_SMOKE_TESTS=1 pytest tests/test_smoke.py` with live Fusion 360 to validate LT-5 integration tests
+3. Run `/vsify-me:adr detect` to capture threading fix, IPC hardening, and version management as new ADRs
+4. Consider enhancing mcp.json tool descriptions with centimeter unit annotations (P2 deferred from code review)

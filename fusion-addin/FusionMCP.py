@@ -23,15 +23,23 @@ CUSTOM_EVENT_ID = "FusionMCPCommandEvent"
 
 # Structured logging to file (visible outside Fusion 360's embedded Python)
 logger = logging.getLogger("FusionMCP")
-logger.setLevel(logging.DEBUG)
+_valid_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+_addin_log_level = os.environ.get("FUSION_LOG_LEVEL", "INFO").upper()
+_addin_log_level = _addin_log_level if _addin_log_level in _valid_log_levels else "INFO"
+logger.setLevel(getattr(logging, _addin_log_level, logging.INFO))
 _log_file = COMM_DIR / "addin.log"
 try:
     COMM_DIR.mkdir(mode=0o700, exist_ok=True)
     _handler = logging.handlers.RotatingFileHandler(str(_log_file), maxBytes=1_000_000, backupCount=3)
-    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(funcName)s] %(message)s"))
     logger.addHandler(_handler)
-except Exception:
-    pass  # Logging is best-effort; don't block add-in startup
+except Exception as _log_err:
+    import sys as _sys
+
+    print(f"FusionMCP: file logging failed ({_log_err}), falling back to stderr", file=_sys.stderr)
+    _stderr_handler = logging.StreamHandler(_sys.stderr)
+    _stderr_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(funcName)s] %(message)s"))
+    logger.addHandler(_stderr_handler)
 
 # Thread-safe storage for pending commands: {command_id: command_dict}
 _pending_commands = {}
@@ -74,7 +82,11 @@ class CommandEventHandler(adsk.core.CustomEventHandler):
             if command is None:
                 return
 
+            tool_name = str(command.get("name", "unknown")).replace("\n", "_").replace("\r", "_")[:64]
+            start = time.monotonic()
             result = execute_command(command)
+            elapsed_ms = (time.monotonic() - start) * 1000
+            logger.info("tool=%s cmd_id=%s elapsed_ms=%.1f success=%s", tool_name, command_id, elapsed_ms, result.get("success"))
             resp_file = COMM_DIR / f"response_{command_id}.json"
             tmp_file = COMM_DIR / f"response_{command_id}.tmp"
             fd = os.open(str(tmp_file), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
