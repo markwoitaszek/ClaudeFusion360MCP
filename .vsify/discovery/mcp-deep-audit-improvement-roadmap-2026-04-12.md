@@ -90,30 +90,30 @@ Comprehensive audit of the ClaudeFusion360MCP repository to verify MCP legitimac
 
 ### Long-Term (Weeks)
 
-| ID   | Requirement                                     | Type    | Effort | Status  |
-| ---- | ----------------------------------------------- | ------- | ------ | ------- |
-| LT-1 | ~~Add MCP registry metadata (mcp.json, schemas)~~   | Feature | Low    | Done |
-| LT-2 | ~~Create one-command installer~~                    | Feature | Medium | Done |
-| LT-3 | ~~Add structured logging to both components~~       | Quality | Low    | Done |
-| LT-4 | ~~Enforce consistent semver across all components~~ | Quality | Low    | Done |
-| LT-5 | ~~Integration smoke tests against live Fusion 360~~ | Quality | Medium | Done |
+| ID   | Requirement                                         | Type    | Effort | Status |
+| ---- | --------------------------------------------------- | ------- | ------ | ------ |
+| LT-1 | ~~Add MCP registry metadata (mcp.json, schemas)~~   | Feature | Low    | Done   |
+| LT-2 | ~~Create one-command installer~~                    | Feature | Medium | Done   |
+| LT-3 | ~~Add structured logging to both components~~       | Quality | Low    | Done   |
+| LT-4 | ~~Enforce consistent semver across all components~~ | Quality | Low    | Done   |
+| LT-5 | ~~Integration smoke tests against live Fusion 360~~ | Quality | Medium | Done   |
 
 ### New Requirements Discovered
 
-| ID    | Requirement                                       | Type    | Status  | Notes                                                                                                                                                                                                                 |
-| ----- | ------------------------------------------------- | ------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NR-1  | IPC protocol versioning                           | Quality | Pending |                                                                                                                                                                                                                       |
-| NR-2  | Fusion lifecycle handling (graceful cleanup)      | Quality | Pending |                                                                                                                                                                                                                       |
-| NR-3  | High-quality tool descriptions for Claude         | Quality | Pending |                                                                                                                                                                                                                       |
-| NR-4  | ~~Export tools must return actual file path~~     | Feature | Done    | MT-1: export handlers return filepath                                                                                                                                                                                 |
-| NR-5  | ~~Add list_bodies/get_model_state tool~~          | Feature | Done    | MT-1: get_body_info handler implemented                                                                                                                                                                               |
-| NR-6  | Add ping() health check tool                      | Feature | Pending |                                                                                                                                                                                                                       |
-| NR-7  | ~~Startup assertion logging unimplemented tools~~ | Quality | Done    | Registry pattern ensures parity                                                                                                                                                                                       |
-| NR-8  | Command file TTL (skip files older than 60s)      | Quality | Pending |                                                                                                                                                                                                                       |
-| NR-9  | Minimum Fusion 360 version check                  | Quality | Pending |                                                                                                                                                                                                                       |
-| NR-10 | ~~Implement offset in create_sketch handler~~     | Feature | Done    | MT-1: offset creates construction plane                                                                                                                                                                               |
-| NR-11 | ~~Implement profile_index in extrude handler~~    | Feature | Done    | MT-1: profile_index with bounds check                                                                                                                                                                                 |
-| NR-12 | ~~Integration smoke tests against live Fusion 360~~   | Quality | Done | LT-5: tests/test_smoke.py with 4 live scenarios (sketch→extrude, component move, export round-trip, design info query) gated by FUSION_SMOKE_TESTS=1. Not CI-gated. |
+| ID    | Requirement                                         | Type    | Status  | Notes                                                                                                                                                               |
+| ----- | --------------------------------------------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NR-1  | IPC protocol versioning                             | Quality | Pending |                                                                                                                                                                     |
+| NR-2  | Fusion lifecycle handling (graceful cleanup)        | Quality | Pending |                                                                                                                                                                     |
+| NR-3  | High-quality tool descriptions for Claude           | Quality | Pending |                                                                                                                                                                     |
+| NR-4  | ~~Export tools must return actual file path~~       | Feature | Done    | MT-1: export handlers return filepath                                                                                                                               |
+| NR-5  | ~~Add list_bodies/get_model_state tool~~            | Feature | Done    | MT-1: get_body_info handler implemented                                                                                                                             |
+| NR-6  | Add ping() health check tool                        | Feature | Pending |                                                                                                                                                                     |
+| NR-7  | ~~Startup assertion logging unimplemented tools~~   | Quality | Done    | Registry pattern ensures parity                                                                                                                                     |
+| NR-8  | Command file TTL (skip files older than 60s)        | Quality | Pending |                                                                                                                                                                     |
+| NR-9  | Minimum Fusion 360 version check                    | Quality | Pending |                                                                                                                                                                     |
+| NR-10 | ~~Implement offset in create_sketch handler~~       | Feature | Done    | MT-1: offset creates construction plane                                                                                                                             |
+| NR-11 | ~~Implement profile_index in extrude handler~~      | Feature | Done    | MT-1: profile_index with bounds check                                                                                                                               |
+| NR-12 | ~~Integration smoke tests against live Fusion 360~~ | Quality | Done    | LT-5: tests/test_smoke.py with 4 live scenarios (sketch→extrude, component move, export round-trip, design info query) gated by FUSION_SMOKE_TESTS=1. Not CI-gated. |
 
 ## Risk Assessment
 
