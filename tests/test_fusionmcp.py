@@ -1,12 +1,16 @@
 """Tests for fusion-addin/FusionMCP.py pure-Python logic.
 
 Tests execute_command (registry dispatch), handle_batch (batch validation),
-and monitor_commands token logic without requiring Fusion 360.
+monitor_commands token logic, protocol version validation, stale file cleanup,
+ping health check, and command file TTL without requiring Fusion 360.
 """
 
+import json
 import os
 import sys
+import time
 import types
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 # Mock the adsk module before importing FusionMCP
@@ -137,3 +141,277 @@ class TestHandlerRegistry:
     def test_registry_has_expected_tool_count(self):
         """Registry should have at least 39 tools (9 original + 30 new)."""
         assert len(FusionMCP.HANDLER_REGISTRY) >= 39
+
+    def test_all_handlers_have_three_param_signature(self):
+        """Every handler in HANDLER_REGISTRY must accept exactly 3 positional params (design, rootComp, params)."""
+        import inspect
+        for name, handler in FusionMCP.HANDLER_REGISTRY.items():
+            sig = inspect.signature(handler)
+            # Count parameters that are positional (no default) or have defaults
+            params = [p for p in sig.parameters.values() if p.kind in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )]
+            assert len(params) == 3, (
+                f"HANDLER_REGISTRY['{name}'] has {len(params)} params, expected 3 (design, rootComp, params)"
+            )
+
+
+class TestHandlePing:
+    """Tests for the NR-6 ping health check handler."""
+
+    def test_ping_returns_success_without_active_design(self):
+        """handle_ping works without an active design (its key differentiator)."""
+        FusionMCP.app = MagicMock()
+        FusionMCP.app.version = "2.0.20440"
+        result = FusionMCP.handle_ping(None, None, {})
+        assert result["success"] is True
+        assert result["status"] == "ok"
+        assert result["addin_version"] == FusionMCP.ADDIN_VERSION
+        assert result["protocol_version"] == FusionMCP.PROTOCOL_VERSION
+        assert result["fusion_version"] == "2.0.20440"
+
+    def test_ping_via_execute_command_without_design(self):
+        """Ping through execute_command succeeds even with no active design."""
+        FusionMCP.app = MagicMock()
+        FusionMCP.app.activeProduct = None
+        FusionMCP.app.version = "2.0.20440"
+        result = FusionMCP.execute_command({"name": "ping", "params": {}})
+        assert result["success"] is True
+        assert result["status"] == "ok"
+
+    def test_ping_via_batch(self):
+        """Ping through batch handler works (regression test for signature mismatch)."""
+        FusionMCP.app = MagicMock()
+        FusionMCP.app.version = "2.0.20440"
+        design = MagicMock()
+        rootComp = MagicMock()
+        result = FusionMCP.handle_batch(design, rootComp, {"commands": [{"name": "ping", "params": {}}]})
+        assert result["success"] is True
+        assert result["executed"] == 1
+        assert result["results"][0]["status"] == "ok"
+
+    def test_ping_handles_version_error(self):
+        """handle_ping returns 'unknown' if app.version raises."""
+        FusionMCP.app = MagicMock()
+        FusionMCP.app.version = property(lambda self: (_ for _ in ()).throw(RuntimeError("no version")))
+        type(FusionMCP.app).version = property(lambda self: (_ for _ in ()).throw(RuntimeError))
+        result = FusionMCP.handle_ping(None, None, {})
+        assert result["success"] is True
+        assert result["fusion_version"] == "unknown"
+
+
+class TestCleanupStaleFiles:
+    """Tests for the NR-2 stale file cleanup function."""
+
+    def test_removes_stale_command_and_response_files(self, tmp_path):
+        """_cleanup_stale_files removes command and response files from COMM_DIR."""
+        with patch.object(FusionMCP, "COMM_DIR", tmp_path):
+            # Create stale files
+            (tmp_path / "command_old1.json").write_text("{}")
+            (tmp_path / "response_old1.json").write_text("{}")
+            (tmp_path / "command_old2.tmp").write_text("{}")
+            (tmp_path / "response_old2.tmp").write_text("{}")
+            # Create a non-matching file that should NOT be removed
+            (tmp_path / "other_file.txt").write_text("keep me")
+
+            FusionMCP._cleanup_stale_files()
+
+            assert not (tmp_path / "command_old1.json").exists()
+            assert not (tmp_path / "response_old1.json").exists()
+            assert not (tmp_path / "command_old2.tmp").exists()
+            assert not (tmp_path / "response_old2.tmp").exists()
+            assert (tmp_path / "other_file.txt").exists()
+
+    def test_handles_unlink_errors_gracefully(self, tmp_path):
+        """_cleanup_stale_files continues if individual unlink fails."""
+        with patch.object(FusionMCP, "COMM_DIR", tmp_path):
+            f = tmp_path / "command_err.json"
+            f.write_text("{}")
+            with patch.object(Path, "unlink", side_effect=PermissionError("denied")):
+                # Should not raise
+                FusionMCP._cleanup_stale_files()
+
+    def test_empty_directory(self, tmp_path):
+        """_cleanup_stale_files handles empty COMM_DIR gracefully."""
+        with patch.object(FusionMCP, "COMM_DIR", tmp_path):
+            FusionMCP._cleanup_stale_files()  # Should not raise
+
+
+class TestProtocolVersionValidation:
+    """Tests for NR-1 protocol version validation in monitor_commands."""
+
+    def test_matching_version_accepted(self, tmp_path):
+        """Commands with matching protocol_version are dispatched."""
+        with patch.object(FusionMCP, "COMM_DIR", tmp_path):
+            cmd_id = "test_match_123"
+            cmd = {
+                "type": "tool",
+                "name": "ping",
+                "params": {},
+                "id": cmd_id,
+                "protocol_version": FusionMCP.PROTOCOL_VERSION,
+                "session_token": "tok123",
+            }
+            cmd_file = tmp_path / f"command_{cmd_id}.json"
+            cmd_file.write_text(json.dumps(cmd))
+
+            FusionMCP._session_token = "tok123"
+            FusionMCP.app = MagicMock()
+            FusionMCP._stop_event.clear()
+
+            # Run one iteration of monitor_commands then stop
+            with patch.object(FusionMCP._stop_event, "is_set", side_effect=[False, True]):
+                with patch.object(FusionMCP._stop_event, "wait"):
+                    with patch.object(FusionMCP.app, "fireCustomEvent") as mock_fire:
+                        FusionMCP.monitor_commands()
+                        mock_fire.assert_called_once_with(FusionMCP.CUSTOM_EVENT_ID, cmd_id)
+
+    def test_mismatched_version_rejected(self, tmp_path):
+        """Commands with wrong protocol_version are rejected with error response."""
+        with patch.object(FusionMCP, "COMM_DIR", tmp_path):
+            cmd_id = "test_mismatch_456"
+            cmd = {
+                "type": "tool",
+                "name": "get_design_info",
+                "params": {},
+                "id": cmd_id,
+                "protocol_version": 999,  # Wrong version
+                "session_token": "tok123",
+            }
+            cmd_file = tmp_path / f"command_{cmd_id}.json"
+            cmd_file.write_text(json.dumps(cmd))
+
+            FusionMCP._session_token = "tok123"
+            FusionMCP.app = MagicMock()
+            FusionMCP._stop_event.clear()
+
+            with patch.object(FusionMCP._stop_event, "is_set", side_effect=[False, True]):
+                with patch.object(FusionMCP._stop_event, "wait"):
+                    with patch.object(FusionMCP.app, "fireCustomEvent") as mock_fire:
+                        FusionMCP.monitor_commands()
+                        # Should NOT have been dispatched
+                        mock_fire.assert_not_called()
+
+            # Error response should have been written
+            resp_file = tmp_path / f"response_{cmd_id}.json"
+            assert resp_file.exists()
+            resp = json.loads(resp_file.read_text())
+            assert resp["success"] is False
+            assert "Protocol version mismatch" in resp["error"]
+
+    def test_missing_version_rejected(self, tmp_path):
+        """Commands without protocol_version field are rejected."""
+        with patch.object(FusionMCP, "COMM_DIR", tmp_path):
+            cmd_id = "test_missing_789"
+            cmd = {
+                "type": "tool",
+                "name": "get_design_info",
+                "params": {},
+                "id": cmd_id,
+                # No protocol_version field
+                "session_token": "tok123",
+            }
+            cmd_file = tmp_path / f"command_{cmd_id}.json"
+            cmd_file.write_text(json.dumps(cmd))
+
+            FusionMCP._session_token = "tok123"
+            FusionMCP.app = MagicMock()
+            FusionMCP._stop_event.clear()
+
+            with patch.object(FusionMCP._stop_event, "is_set", side_effect=[False, True]):
+                with patch.object(FusionMCP._stop_event, "wait"):
+                    with patch.object(FusionMCP.app, "fireCustomEvent") as mock_fire:
+                        FusionMCP.monitor_commands()
+                        mock_fire.assert_not_called()
+
+            resp_file = tmp_path / f"response_{cmd_id}.json"
+            assert resp_file.exists()
+            resp = json.loads(resp_file.read_text())
+            assert resp["success"] is False
+            assert "Protocol version mismatch" in resp["error"]
+
+
+class TestCommandFileTTL:
+    """Tests for NR-8 command file TTL (skip/delete files older than threshold)."""
+
+    def test_fresh_file_processed(self, tmp_path):
+        """Files younger than CMD_FILE_TTL_SECONDS are processed normally."""
+        with patch.object(FusionMCP, "COMM_DIR", tmp_path):
+            cmd_id = "test_fresh_001"
+            cmd = {
+                "type": "tool", "name": "ping", "params": {},
+                "id": cmd_id, "protocol_version": FusionMCP.PROTOCOL_VERSION,
+                "session_token": "tok123",
+            }
+            cmd_file = tmp_path / f"command_{cmd_id}.json"
+            cmd_file.write_text(json.dumps(cmd))
+            # File was just created — mtime is now
+
+            FusionMCP._session_token = "tok123"
+            FusionMCP.app = MagicMock()
+            FusionMCP._stop_event.clear()
+
+            with patch.object(FusionMCP._stop_event, "is_set", side_effect=[False, True]):
+                with patch.object(FusionMCP._stop_event, "wait"):
+                    with patch.object(FusionMCP.app, "fireCustomEvent") as mock_fire:
+                        FusionMCP.monitor_commands()
+                        mock_fire.assert_called_once()
+
+    def test_stale_file_skipped_and_deleted(self, tmp_path):
+        """Files older than CMD_FILE_TTL_SECONDS are skipped and deleted."""
+        with patch.object(FusionMCP, "COMM_DIR", tmp_path):
+            cmd_id = "test_stale_002"
+            cmd = {
+                "type": "tool", "name": "ping", "params": {},
+                "id": cmd_id, "protocol_version": FusionMCP.PROTOCOL_VERSION,
+                "session_token": "tok123",
+            }
+            cmd_file = tmp_path / f"command_{cmd_id}.json"
+            cmd_file.write_text(json.dumps(cmd))
+            # Backdate the file to be older than the TTL
+            old_time = time.time() - FusionMCP.CMD_FILE_TTL_SECONDS - 10
+            os.utime(cmd_file, (old_time, old_time))
+
+            FusionMCP._session_token = "tok123"
+            FusionMCP.app = MagicMock()
+            FusionMCP._stop_event.clear()
+
+            with patch.object(FusionMCP._stop_event, "is_set", side_effect=[False, True]):
+                with patch.object(FusionMCP._stop_event, "wait"):
+                    with patch.object(FusionMCP.app, "fireCustomEvent") as mock_fire:
+                        FusionMCP.monitor_commands()
+                        # Stale file should NOT have been dispatched
+                        mock_fire.assert_not_called()
+
+            # Stale file should have been deleted
+            assert not cmd_file.exists()
+
+
+class TestVersionComparison:
+    """Tests for NR-9 version comparison logic."""
+
+    def test_older_version_logs_warning(self):
+        """Versions older than baseline trigger a warning."""
+        FusionMCP.app = MagicMock()
+        FusionMCP.app.version = "2.0.10000"
+        with patch.object(FusionMCP.logger, "warning") as mock_warn:
+            FusionMCP._log_fusion_version()
+            assert any("older than" in str(call) for call in mock_warn.call_args_list)
+
+    def test_newer_version_no_warning(self):
+        """Versions newer than baseline do not trigger a warning."""
+        FusionMCP.app = MagicMock()
+        FusionMCP.app.version = "2.0.99999"
+        with patch.object(FusionMCP.logger, "warning") as mock_warn:
+            FusionMCP._log_fusion_version()
+            # No warning should be logged (only info)
+            assert not any("older than" in str(call) for call in mock_warn.call_args_list)
+
+    def test_numeric_comparison_not_lexicographic(self):
+        """Version '2.0.9999' is correctly identified as older than '2.0.20440'."""
+        FusionMCP.app = MagicMock()
+        FusionMCP.app.version = "2.0.9999"  # Lexicographically > but numerically <
+        with patch.object(FusionMCP.logger, "warning") as mock_warn:
+            FusionMCP._log_fusion_version()
+            assert any("older than" in str(call) for call in mock_warn.call_args_list)

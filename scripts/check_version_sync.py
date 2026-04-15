@@ -60,6 +60,74 @@ READERS = {
 }
 
 
+def _extract_python_constant(path: Path, name: str) -> str | None:
+    """Extract a Python constant assignment (e.g., PROTOCOL_VERSION = 1) from a file."""
+    pattern = rf'^{re.escape(name)}\s*=\s*(.+?)$'
+    text = path.read_text()
+    match = re.search(pattern, text, re.MULTILINE)
+    if not match:
+        return None
+    raw = match.group(1).strip().strip('"').strip("'")
+    return raw
+
+
+# Cross-runtime constants that must match between mcp-server and fusion-addin.
+# Each entry: (constant_name, [(label, file_path), ...])
+PARITY_CHECKS: list[tuple[str, list[tuple[str, Path]]]] = [
+    (
+        "PROTOCOL_VERSION",
+        [
+            ("mcp-server/ipc.py", PROJECT_ROOT / "mcp-server" / "ipc.py"),
+            ("fusion-addin/FusionMCP.py", PROJECT_ROOT / "fusion-addin" / "FusionMCP.py"),
+        ],
+    ),
+    (
+        "ADDIN_VERSION",
+        [
+            ("fusion-addin/FusionMCP.py", PROJECT_ROOT / "fusion-addin" / "FusionMCP.py"),
+        ],
+    ),
+]
+
+
+def check_parity(canonical_version: str) -> list[str]:
+    """Check cross-runtime constant parity. Returns list of drift messages."""
+    drift: list[str] = []
+    for const_name, sources in PARITY_CHECKS:
+        values: dict[str, str] = {}
+        for label, path in sources:
+            if not path.exists():
+                drift.append(f"  {const_name} in {label}: file not found")
+                continue
+            val = _extract_python_constant(path, const_name)
+            if val is None:
+                drift.append(f"  {const_name} in {label}: constant not found")
+                continue
+            values[label] = val
+
+        if not values:
+            continue
+
+        # For ADDIN_VERSION, check against canonical product version
+        if const_name == "ADDIN_VERSION":
+            for label, val in values.items():
+                status = "OK" if val == canonical_version else "DRIFT"
+                print(f"  {const_name} in {label}: {val} [{status}]")
+                if status == "DRIFT":
+                    drift.append(f"  {const_name} in {label}: {val} (expected {canonical_version})")
+        else:
+            # For other constants, check all sources match each other
+            unique = set(values.values())
+            if len(unique) > 1:
+                for label, val in values.items():
+                    drift.append(f"  {const_name} in {label}: {val}")
+                    print(f"  {const_name} in {label}: {val} [DRIFT]")
+            else:
+                for label, val in values.items():
+                    print(f"  {const_name} in {label}: {val} [OK]")
+    return drift
+
+
 def main() -> int:
     canonical_source = "pyproject.toml"
     versions: dict[str, str] = {}
@@ -90,6 +158,10 @@ def main() -> int:
         if status == "DRIFT":
             drift.append(f"  {name}: {version} (expected {canonical})")
         print(f"  {name}: {version} [{status}]")
+
+    # Cross-runtime constant parity checks
+    print("\nCross-runtime parity checks:")
+    drift.extend(check_parity(canonical))
 
     if drift:
         print(f"\nVersion sync FAILED — {len(drift)} source(s) diverge from {canonical_source} ({canonical}):")

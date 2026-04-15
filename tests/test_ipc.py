@@ -70,6 +70,25 @@ class TestSendFusionCommand:
             with patch("ipc.time.sleep", side_effect=check_and_respond):
                 ipc.send_fusion_command("test_tool", {})
 
+    def test_command_includes_protocol_version(self, mock_comm_dir):
+        """NR-1: every command must include protocol_version matching PROTOCOL_VERSION."""
+        with patch.object(ipc, "COMM_DIR", mock_comm_dir), patch.object(ipc, "_session_token", "tok"):
+
+            def check_and_respond(*args, **kwargs):
+                cmd_files = list(mock_comm_dir.glob("command_*.json"))
+                if cmd_files:
+                    with open(cmd_files[0]) as f:
+                        cmd = json.load(f)
+                    assert "protocol_version" in cmd, "Command missing protocol_version field"
+                    assert cmd["protocol_version"] == ipc.PROTOCOL_VERSION
+                    resp_file = mock_comm_dir / f"response_{cmd['id']}.json"
+                    with open(resp_file, "w") as f:
+                        json.dump({"success": True}, f)
+                return 0.0
+
+            with patch("ipc.time.sleep", side_effect=check_and_respond):
+                ipc.send_fusion_command("any_tool", {"param": "value"})
+
     def test_timeout_raises_exception(self, mock_comm_dir):
         with patch.object(ipc, "COMM_DIR", mock_comm_dir), patch.object(ipc, "_session_token", None):
             with patch("ipc.time.sleep", return_value=None):

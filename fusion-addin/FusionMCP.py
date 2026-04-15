@@ -24,7 +24,16 @@ CUSTOM_EVENT_ID = "FusionMCPCommandEvent"
 
 # IPC protocol version (NR-1): must match the MCP server's PROTOCOL_VERSION.
 # Commands with a mismatched version are rejected (fail-closed).
+# SYNC: scripts/check_version_sync.py validates parity with mcp-server/ipc.py
 PROTOCOL_VERSION = 1
+
+# Add-in version — single source of truth for runtime version reporting.
+# SYNC: scripts/check_version_sync.py validates parity with pyproject.toml
+ADDIN_VERSION = "7.2.0"
+
+# TTL constants for command processing
+CMD_FILE_TTL_SECONDS = 45  # Must be <= IPC timeout (45s in ipc.py) to avoid executing abandoned commands
+DISPATCH_TTL_SECONDS = 60  # Cleanup interval for dispatched command IDs
 
 # Structured logging to file (visible outside Fusion 360's embedded Python)
 logger = logging.getLogger("FusionMCP")
@@ -116,15 +125,21 @@ def _log_fusion_version():
     try:
         version = app.version
         logger.info("Fusion 360 version: %s (tested with >= %s)", version, TESTED_FUSION_VERSION)
-        # Simple string comparison — Fusion versions are dot-separated numeric
-        if version < TESTED_FUSION_VERSION:
-            logger.warning(
-                "Fusion 360 version %s is older than the tested baseline %s. "
-                "Some features may not work correctly.",
-                version, TESTED_FUSION_VERSION,
-            )
+        # Numeric tuple comparison handles variable-width segments correctly
+        # (e.g., "2.0.9999" vs "2.0.20440" compares 9999 < 20440)
+        try:
+            running = tuple(int(x) for x in version.split("."))
+            baseline = tuple(int(x) for x in TESTED_FUSION_VERSION.split("."))
+            if running < baseline:
+                logger.warning(
+                    "Fusion 360 version %s is older than the tested baseline %s. "
+                    "Some features may not work correctly.",
+                    version, TESTED_FUSION_VERSION,
+                )
+        except (ValueError, TypeError):
+            logger.warning("Could not parse Fusion 360 version '%s' for comparison", version)
     except Exception:
-        logger.warning("Could not determine Fusion 360 version")
+        logger.warning("Could not determine Fusion 360 version", exc_info=True)
 
 
 def _load_session_token():
@@ -164,6 +179,15 @@ def run(context):
         ui = app.userInterface
         COMM_DIR.mkdir(mode=0o700, exist_ok=True)
         os.chmod(COMM_DIR, 0o700)
+
+        # Validate COMM_DIR is a real directory owned by current user (mirror ipc.py guard)
+        import stat as _stat_mod
+        dir_stat = os.stat(COMM_DIR, follow_symlinks=False)
+        if not _stat_mod.S_ISDIR(dir_stat.st_mode):
+            raise RuntimeError(f"{COMM_DIR} is not a real directory — possible symlink attack")
+        if hasattr(os, "getuid") and dir_stat.st_uid != os.getuid():
+            raise RuntimeError(f"{COMM_DIR} is not owned by current user")
+
         _stop_event.clear()
 
         # Clean up stale files from previous sessions (NR-2)
@@ -184,6 +208,7 @@ def run(context):
         monitor_thread.start()
         ui.messageBox("Fusion MCP Started!\n\nListening at:\n" + str(COMM_DIR))
     except Exception:
+        logger.exception("Add-in startup failed")
         if ui:
             ui.messageBox("Failed:\n" + traceback.format_exc())
 
@@ -219,22 +244,22 @@ def monitor_commands():
     dispatched_ids = {}  # command_id -> dispatch_time (for TTL-based cleanup)
     while not _stop_event.is_set():
         try:
-            # TTL cleanup: remove entries older than 60s to prevent unbounded growth
+            # TTL cleanup: remove entries older than DISPATCH_TTL_SECONDS to prevent unbounded growth
             now = time.monotonic()
-            expired = [cid for cid, t in dispatched_ids.items() if now - t > 60]
+            expired = [cid for cid, t in dispatched_ids.items() if now - t > DISPATCH_TTL_SECONDS]
             for cid in expired:
                 dispatched_ids.pop(cid, None)
 
             cmd_files = list(COMM_DIR.glob("command_*.json"))
             for cmd_file in cmd_files:
                 try:
-                    # Command file TTL (NR-8): skip files older than 60 seconds.
+                    # Command file TTL (NR-8): skip files older than CMD_FILE_TTL_SECONDS.
                     # Stale files are leftovers from timed-out or crashed sessions.
                     try:
                         file_age = time.time() - cmd_file.stat().st_mtime
                     except OSError:
                         continue  # File disappeared between glob and stat
-                    if file_age > 60:
+                    if file_age > CMD_FILE_TTL_SECONDS:
                         logger.info("Skipping stale command file (age=%.0fs): %s", file_age, cmd_file.name)
                         try:
                             cmd_file.unlink()
@@ -312,9 +337,14 @@ def monitor_commands():
 # =============================================================================
 
 
-def handle_ping(app, design, rootComp, params):
+def handle_ping(design, rootComp, params):
     """Health check handler (NR-6): returns status without requiring an active design."""
-    result = {"success": True, "status": "ok", "addin_version": "7.2.0"}
+    result = {
+        "success": True,
+        "status": "ok",
+        "addin_version": ADDIN_VERSION,
+        "protocol_version": PROTOCOL_VERSION,
+    }
     try:
         result["fusion_version"] = app.version
     except Exception:
@@ -329,7 +359,7 @@ def execute_command(command):
 
     # ping handler runs before the design check — it works without an active design
     if tool_name == "ping":
-        return handle_ping(app, None, None, params)
+        return handle_ping(None, None, params)
 
     try:
         design = app.activeProduct
