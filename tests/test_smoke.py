@@ -32,10 +32,11 @@ def test_server_module_imports():
 
 
 def test_all_tool_routers_mount():
-    """Verify all 4 tool routers can be imported."""
+    """Verify all 5 tool routers can be imported."""
     import tools.assembly  # noqa: F401
     import tools.features  # noqa: F401
     import tools.io  # noqa: F401
+    import tools.planning  # noqa: F401
     import tools.sketch  # noqa: F401
 
 
@@ -52,10 +53,11 @@ def test_tool_count_matches_registry():
     import tools.assembly
     import tools.features
     import tools.io
+    import tools.planning
     import tools.sketch
 
     all_tools = set()
-    for mod in [tools.sketch, tools.features, tools.assembly, tools.io]:
+    for mod in [tools.sketch, tools.features, tools.assembly, tools.io, tools.planning]:
         if hasattr(mod, "router") and hasattr(mod.router, "_tools"):
             all_tools.update(mod.router._tools)
 

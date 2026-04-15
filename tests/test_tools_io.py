@@ -59,10 +59,10 @@ class TestExportStl:
 class TestPing:
     """Tests for the NR-6 ping health check tool."""
 
-    def test_ping_calls_send_fusion_command(self):
+    def test_ping_calls_send_fusion_command_with_5s_timeout(self):
         with patch("tools.io.send_fusion_command", return_value={"success": True, "status": "ok"}) as mock:
             result = io_tools.ping()
-            mock.assert_called_once_with("ping", {})
+            mock.assert_called_once_with("ping", {}, timeout_s=5.0)
             assert result["success"] is True
 
     def test_ping_returns_response(self):

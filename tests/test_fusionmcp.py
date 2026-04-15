@@ -145,16 +145,22 @@ class TestHandlerRegistry:
     def test_all_handlers_have_three_param_signature(self):
         """Every handler in HANDLER_REGISTRY must accept exactly 3 positional params (design, rootComp, params)."""
         import inspect
+
         for name, handler in FusionMCP.HANDLER_REGISTRY.items():
             sig = inspect.signature(handler)
             # Count parameters that are positional (no default) or have defaults
-            params = [p for p in sig.parameters.values() if p.kind in (
-                inspect.Parameter.POSITIONAL_ONLY,
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            )]
-            assert len(params) == 3, (
-                f"HANDLER_REGISTRY['{name}'] has {len(params)} params, expected 3 (design, rootComp, params)"
-            )
+            params = [
+                p
+                for p in sig.parameters.values()
+                if p.kind
+                in (
+                    inspect.Parameter.POSITIONAL_ONLY,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                )
+            ]
+            assert (
+                len(params) == 3
+            ), f"HANDLER_REGISTRY['{name}'] has {len(params)} params, expected 3 (design, rootComp, params)"
 
 
 class TestHandlePing:
@@ -340,8 +346,11 @@ class TestCommandFileTTL:
         with patch.object(FusionMCP, "COMM_DIR", tmp_path):
             cmd_id = "test_fresh_001"
             cmd = {
-                "type": "tool", "name": "ping", "params": {},
-                "id": cmd_id, "protocol_version": FusionMCP.PROTOCOL_VERSION,
+                "type": "tool",
+                "name": "ping",
+                "params": {},
+                "id": cmd_id,
+                "protocol_version": FusionMCP.PROTOCOL_VERSION,
                 "session_token": "tok123",
             }
             cmd_file = tmp_path / f"command_{cmd_id}.json"
@@ -363,8 +372,11 @@ class TestCommandFileTTL:
         with patch.object(FusionMCP, "COMM_DIR", tmp_path):
             cmd_id = "test_stale_002"
             cmd = {
-                "type": "tool", "name": "ping", "params": {},
-                "id": cmd_id, "protocol_version": FusionMCP.PROTOCOL_VERSION,
+                "type": "tool",
+                "name": "ping",
+                "params": {},
+                "id": cmd_id,
+                "protocol_version": FusionMCP.PROTOCOL_VERSION,
                 "session_token": "tok123",
             }
             cmd_file = tmp_path / f"command_{cmd_id}.json"

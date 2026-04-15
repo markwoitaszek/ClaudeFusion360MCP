@@ -14,6 +14,12 @@ Session token (MT-3):
   On startup, the MCP server generates a session token and writes it to
   COMM_DIR/session_token. Every command includes the token. The add-in
   validates the token and rejects commands without a matching token.
+
+Single-process constraint:
+  Module-level globals (_session_token, _command_counter, _stats) assume a
+  single MCP server process. Multi-process deployments may collide on the
+  session token file and stats counters. This is a known limitation
+  documented in KNOWN_ISSUES.md.
 """
 
 import json
@@ -23,6 +29,8 @@ import secrets
 import stat
 import time
 from pathlib import Path
+
+from errors import FusionIPCError, FusionTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +45,60 @@ _session_token: str | None = None
 # Monotonic counter to prevent command ID collisions within the same process
 _command_counter = 0
 
+# Session telemetry counters (REQ-P1-2). Opaque — never includes tokens.
+_stats: dict = {
+    "commands_sent": 0,
+    "commands_succeeded": 0,
+    "commands_timed_out": 0,
+    "commands_failed": 0,
+    "last_error": None,
+    "last_tool": None,
+}
+
+
+def get_stats() -> dict:
+    """Return a copy of session telemetry counters.
+
+    Security: Explicitly returns only opaque counters. Never includes
+    session_token, its hex length, or any derivation.
+    """
+    return {
+        "commands_sent": _stats["commands_sent"],
+        "commands_succeeded": _stats["commands_succeeded"],
+        "commands_timed_out": _stats["commands_timed_out"],
+        "commands_failed": _stats["commands_failed"],
+        "last_error": _stats["last_error"],
+        "last_tool": _stats["last_tool"],
+    }
+
+
+def _check_comm_dir() -> None:
+    """Pre-flight check: verify COMM_DIR exists and is accessible.
+
+    Raises FusionIPCError with diagnostic information if the directory
+    is missing, not a directory, or not owned by the current user.
+    """
+    if not COMM_DIR.exists():
+        raise FusionIPCError(
+            f"Communication directory does not exist: {COMM_DIR}. "
+            "Run the MCP server once to create it, or check that the path is correct.",
+            tool_name="",
+            remediation="Start the Fusion 360 MCP server to initialize the IPC directory.",
+        )
+    dir_stat = os.stat(COMM_DIR, follow_symlinks=False)
+    if not stat.S_ISDIR(dir_stat.st_mode):
+        raise FusionIPCError(
+            f"{COMM_DIR} is not a real directory — possible symlink attack.",
+            tool_name="",
+            remediation="Remove the symlink at the COMM_DIR path and restart the server.",
+        )
+    if hasattr(os, "getuid") and dir_stat.st_uid != os.getuid():
+        raise FusionIPCError(
+            f"{COMM_DIR} is not owned by the current user (uid={dir_stat.st_uid}).",
+            tool_name="",
+            remediation="Verify COMM_DIR ownership matches the MCP server process user.",
+        )
+
 
 def initialize_ipc():
     """Create the IPC directory and generate a session token."""
@@ -44,13 +106,7 @@ def initialize_ipc():
     COMM_DIR.mkdir(mode=0o700, exist_ok=True)
     os.chmod(COMM_DIR, 0o700)
     # Verify directory is a real directory owned by the current user (TOCTOU guard)
-    dir_stat = os.stat(COMM_DIR, follow_symlinks=False)
-    if not stat.S_ISDIR(dir_stat.st_mode):
-        logger.error("COMM_DIR %s is not a real directory — possible symlink attack", COMM_DIR)
-        raise RuntimeError(f"{COMM_DIR} is not a real directory — possible symlink attack")
-    if hasattr(os, "getuid") and dir_stat.st_uid != os.getuid():
-        logger.error("COMM_DIR %s is not owned by current user (uid=%s)", COMM_DIR, dir_stat.st_uid)
-        raise RuntimeError(f"{COMM_DIR} is not owned by current user")
+    _check_comm_dir()
 
     _session_token = secrets.token_hex(16)
     token_path = COMM_DIR / "session_token"
@@ -65,7 +121,7 @@ def initialize_ipc():
     logger.info("IPC initialized: COMM_DIR=%s", COMM_DIR)
 
 
-def send_fusion_command(tool_name: str, params: dict) -> dict:
+def send_fusion_command(tool_name: str, params: dict, *, timeout_s: float = 45.0) -> dict:
     """Send a command to Fusion 360 via file-based IPC.
 
     Writes a uniquely-identified JSON command file and polls for the response.
@@ -74,15 +130,27 @@ def send_fusion_command(tool_name: str, params: dict) -> dict:
     Args:
         tool_name: The tool/handler name to invoke.
         params: Parameters dict to pass to the handler.
+        timeout_s: Maximum seconds to wait for response (default 45.0, clamped to [1.0, 60.0]).
 
     Returns:
         The response dict from Fusion 360 (contains 'success' key).
 
     Raises:
-        Exception: If the command fails or times out after 45s.
+        FusionTimeoutError: If the command times out.
+        FusionIPCError: If the response is invalid or COMM_DIR is missing.
     """
     global _command_counter
+
+    # Clamp timeout to safe range
+    timeout_s = max(1.0, min(timeout_s, 60.0))
+
+    # Pre-flight: verify COMM_DIR is accessible
+    _check_comm_dir()
+
     _command_counter += 1
+    _stats["commands_sent"] += 1
+    _stats["last_tool"] = tool_name
+
     # Combine timestamp + counter + random suffix to guarantee uniqueness
     cmd_id = f"{int(time.time() * 1000)}_{_command_counter}_{secrets.token_hex(4)}"
     cmd_file = COMM_DIR / f"command_{cmd_id}.json"
@@ -93,7 +161,11 @@ def send_fusion_command(tool_name: str, params: dict) -> dict:
         # Lazy init: supports multi-process FastMCP workers that import without __main__
         initialize_ipc()
     if _session_token is None:
-        raise RuntimeError("IPC initialization failed: session token could not be generated")
+        raise FusionIPCError(
+            "IPC initialization failed: session token could not be generated.",
+            tool_name=tool_name,
+            remediation="Restart the MCP server. If the issue persists, check COMM_DIR permissions.",
+        )
     command["session_token"] = _session_token
 
     # Atomic write: write to .tmp then rename so the add-in never reads partial JSON
@@ -104,29 +176,63 @@ def send_fusion_command(tool_name: str, params: dict) -> dict:
     finally:
         os.close(fd)
     os.replace(tmp_file, cmd_file)
-    logger.debug("Command sent: tool=%s cmd_id=%s", tool_name, cmd_id)
+    logger.debug("Command sent: tool=%s cmd_id=%s timeout_s=%.1f", tool_name, cmd_id, timeout_s)
     start_time = time.monotonic()
 
-    # 900 iterations at 50ms = 45s timeout
+    # Calculate polling iterations: timeout_s / 0.05s per iteration
+    max_iterations = int(timeout_s / 0.05)
+    midpoint = max_iterations // 2
+
     try:
-        for i in range(900):
+        for i in range(max_iterations):
             if resp_file.exists():
                 elapsed_ms = (time.monotonic() - start_time) * 1000
-                with open(resp_file, "r") as f:
-                    result = json.load(f)
+                try:
+                    with open(resp_file, "r") as f:
+                        result = json.load(f)
+                except (json.JSONDecodeError, OSError) as e:
+                    _stats["commands_failed"] += 1
+                    _stats["last_error"] = f"Malformed response: {e}"
+                    raise FusionIPCError(
+                        f"Malformed response from Fusion 360: {e}",
+                        tool_name=tool_name,
+                        remediation="The add-in may have written a partial response. Retry the command.",
+                    ) from None  # Strip __cause__ chain
                 resp_file.unlink(missing_ok=True)
                 cmd_file.unlink(missing_ok=True)
                 logger.debug("Response received: tool=%s cmd_id=%s elapsed_ms=%.1f", tool_name, cmd_id, elapsed_ms)
                 if not result.get("success"):
-                    raise Exception(result.get("error", "Unknown error"))
+                    _stats["commands_failed"] += 1
+                    error_msg = result.get("error", "Unknown error")
+                    _stats["last_error"] = error_msg
+                    raise FusionIPCError(
+                        error_msg,
+                        tool_name=tool_name,
+                        remediation="Check the Fusion 360 add-in logs for details.",
+                    )
+                _stats["commands_succeeded"] += 1
                 return result
-            if i == 450:
-                logger.warning("Still waiting for '%s' (cmd_id=%s) after 22.5s", tool_name, cmd_id)
+            if i == midpoint:
+                logger.warning(
+                    "Still waiting for '%s' (cmd_id=%s) after %.1fs",
+                    tool_name,
+                    cmd_id,
+                    timeout_s / 2,
+                )
             time.sleep(0.05)
-        logger.error("Timeout after 45s: tool=%s cmd_id=%s", tool_name, cmd_id)
-        raise Exception(
-            f"Timeout after 45s waiting for '{tool_name}' — check that Fusion 360 is running, "
-            "the FusionMCP add-in is loaded and active, and the comm directory is accessible."
+
+        _stats["commands_timed_out"] += 1
+        _stats["last_error"] = f"Timeout after {timeout_s}s for {tool_name}"
+        logger.error("Timeout after %.1fs: tool=%s cmd_id=%s", timeout_s, tool_name, cmd_id)
+        raise FusionTimeoutError(
+            f"Timeout after {timeout_s:.0f}s waiting for '{tool_name}' — check that Fusion 360 is running, "
+            "the FusionMCP add-in is loaded and active, and the comm directory is accessible.",
+            tool_name=tool_name,
+            remediation=(
+                "1. Verify Fusion 360 is running and responsive. "
+                "2. Check the FusionMCP add-in is loaded (Utilities > ADD-INS). "
+                "3. Try ping() to test basic connectivity."
+            ),
         )
     finally:
         cmd_file.unlink(missing_ok=True)

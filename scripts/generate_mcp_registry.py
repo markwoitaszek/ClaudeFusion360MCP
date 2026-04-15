@@ -124,6 +124,7 @@ class ToolIntrospector:
             import tools.assembly  # noqa: F401
             import tools.features  # noqa: F401
             import tools.io  # noqa: F401
+            import tools.planning  # noqa: F401
             import tools.sketch  # noqa: F401
         finally:
             self._cleanup_mock()

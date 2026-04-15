@@ -3,7 +3,8 @@ name: fusion360-mcp
 description: Fusion 360 MCP CAD operations guide for Claude Opus. Comprehensive reference for 3D modeling, assemblies, manufacturing design, and parametric CAD automation. Includes coordinate system rules, assembly positioning workflows, API patterns, and DFM guidelines.
 version: 1.0.0
 model_target: any-claude-model
-mcp_version: 7.0.0
+mcp_version: 7.2.0
+tier: core
 ---
 
 # Fusion 360 MCP Skill Guide for Claude Opus v4.6
@@ -19,7 +20,7 @@ You are assisting users with professional CAD modeling through the Fusion 360 MC
 4. Provide clear explanations of design decisions
 5. Anticipate potential issues before they occur
 
-**MCP v7.0 Capabilities**:
+**MCP v7.2 Capabilities**:
 - Component positioning with `move_component` and `rotate_component`
 - Hollow part creation with `shell`
 - Selective edge treatment with enhanced `fillet`/`chamfer`
@@ -1332,3 +1333,55 @@ The current MCP does not have a `save_design` command. If a user asks to "save",
 3. Wait for confirmation before proceeding
 4. Then export if also requested
 
+---
+
+## Design Intent Clarification Protocol (v7.2)
+
+When a user prompt is ambiguous about design intent, Claude MUST clarify before executing. This prevents wasted work from incorrect assumptions.
+
+### Ambiguity Categories
+
+| Category | Example | Clarification Needed |
+|----------|---------|---------------------|
+| **Dimensional** | "Make a box" | Dimensions, units, origin placement |
+| **Structural** | "Add a handle" | Attachment point, style, ergonomic requirements |
+| **Manufacturing** | "Make it printable" | Process (FDM/SLA/CNC), material constraints |
+
+### Protocol
+
+1. **Detect ambiguity**: If the prompt lacks dimensions, orientation, or manufacturing context
+2. **Ask one focused question**: Target the highest-impact ambiguity first
+3. **Offer concrete options**: "Did you mean (a) 5cm cube or (b) 10cm cube?" rather than open-ended
+4. **Brief-mode override**: If the user has already called `plan_design()` to create a design brief, skip clarification — the brief provides the missing context
+
+### Example
+
+**Ambiguous**: "Create a mounting bracket"
+**Clarification**: "What will the bracket mount to? I need: (1) bolt hole pattern (2) load direction (3) material thickness. Or use `plan_design('mounting bracket', 'cnc_milling')` for a guided brief."
+
+---
+
+## Error Recovery Protocol (v7.2)
+
+When operations fail, follow this diagnostic sequence:
+
+### Connectivity Failures
+
+| Error Code | Meaning | Recovery |
+|------------|---------|----------|
+| `F360_TIMEOUT` | Fusion 360 did not respond in time | 1. Call `ping()` (5s fast check). 2. If ping fails, ask user to verify Fusion is running. 3. Check add-in is loaded. |
+| `F360_SESSION_INVALID` | Session token mismatch | Restart the MCP server to generate a new token. |
+| `F360_IPC_ERROR` | Communication directory issue | Check `~/fusion_mcp_comm/` exists with correct permissions. |
+
+### Geometry Failures
+
+1. **Extrude fails**: Check sketch is closed (no gaps). Use `get_design_info()` to verify sketch state.
+2. **Fillet/chamfer fails**: Edge radius may exceed geometry. Try smaller value or use `get_body_info()` to check edge lengths.
+3. **Boolean fails**: Bodies may not intersect. Verify positions with `measure()`.
+
+### Graceful Degradation
+
+When Fusion 360 is not connected, these tools still work:
+- `plan_design()` — Offline design brief generation
+- `estimate_batch_sequence()` — Offline operation validation
+- `get_session_stats()` — Server statistics

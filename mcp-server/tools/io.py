@@ -18,8 +18,10 @@ def ping() -> dict:
     Returns add-in status and Fusion 360 version. Use this as the first call in a
     session to confirm the connection is working before sending modeling commands.
     Unlike get_design_info(), this works even without an active design open.
+
+    Uses a 5-second timeout (vs 45s default) for fast connectivity probing.
     """
-    return send_fusion_command("ping", {})
+    return send_fusion_command("ping", {}, timeout_s=5.0)
 
 
 @router.tool()

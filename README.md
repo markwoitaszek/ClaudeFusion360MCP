@@ -2,7 +2,7 @@
 
 Control Autodesk Fusion 360 with Claude AI through the Model Context Protocol (MCP).
 
-![MCP Version](https://img.shields.io/badge/MCP-1.0-blue)
+![MCP Version](https://img.shields.io/badge/MCP-7.2-blue)
 ![Fusion 360](https://img.shields.io/badge/Fusion%20360-2024+-orange)
 ![Python](https://img.shields.io/badge/Python-3.10+-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
