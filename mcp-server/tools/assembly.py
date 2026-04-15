@@ -108,7 +108,7 @@ def create_revolute_joint(
     max_angle: float = None,
     flip: bool = False,
 ) -> dict:
-    """Create a revolute (rotating) joint between two components.
+    """Create a revolute (rotating) joint between two components (position in cm, angles in degrees).
 
     Note: axis_x/y/z are accepted for future use but currently mapped to Z axis.
     Note: min_angle/max_angle are accepted for future use but not yet enforced.
@@ -138,7 +138,7 @@ def create_slider_joint(
     min_distance: float = None,
     max_distance: float = None,
 ) -> dict:
-    """Create a slider (linear) joint between two components.
+    """Create a slider (linear) joint between two components (position in cm).
 
     Note: axis_x/y/z are accepted for future use but currently mapped to X axis.
     Note: min_distance/max_distance are accepted for future use but not yet enforced.
@@ -157,7 +157,7 @@ def create_slider_joint(
 
 @router.tool()
 def set_joint_angle(angle: float, joint_index: int = None) -> dict:
-    """Animate a revolute joint to a specific angle (degrees)."""
+    """Set a revolute joint to a specific angle (degrees)."""
     params = {"angle": angle}
     if joint_index is not None:
         params["joint_index"] = joint_index
@@ -166,7 +166,7 @@ def set_joint_angle(angle: float, joint_index: int = None) -> dict:
 
 @router.tool()
 def set_joint_distance(distance: float, joint_index: int = None) -> dict:
-    """Animate a slider joint to a specific distance (cm)."""
+    """Set a slider joint to a specific distance (cm)."""
     params = {"distance": distance}
     if joint_index is not None:
         params["joint_index"] = joint_index

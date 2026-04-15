@@ -4,10 +4,11 @@
     "id": "FusionMCP",
     "author": "Claude AI",
     "description": {
-        "": "MCP Server for Fusion 360"
+        "": "MCP Server for Fusion 360 — control 3D modeling via Claude AI"
     },
     "version": "7.2.0",
     "runOnStartup": true,
     "supportedOS": "windows|mac",
-    "editEnabled": true
+    "editEnabled": true,
+    "testedFusionVersion": "2.0.20440"
 }

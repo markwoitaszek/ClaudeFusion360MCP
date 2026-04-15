@@ -2,11 +2,11 @@
   "name": "fusion360-mcp-server",
   "version": "7.2.0",
   "description": "Control Autodesk Fusion 360 with Claude AI through the Model Context Protocol",
-  "tool_count": 39,
+  "tool_count": 40,
   "tools": [
     {
       "name": "batch",
-      "description": "Execute multiple Fusion commands in a single call - MUCH faster for complex operations.",
+      "description": "Execute multiple Fusion commands in a single call (all dimensions in cm).",
       "parameters": {
         "commands": {
           "type": "array"
@@ -77,7 +77,7 @@
     },
     {
       "name": "create_revolute_joint",
-      "description": "Create a revolute (rotating) joint between two components.",
+      "description": "Create a revolute (rotating) joint between two components (position in cm, angles in degrees).",
       "parameters": {
         "component1_index": {
           "type": "integer",
@@ -143,7 +143,7 @@
     },
     {
       "name": "create_slider_joint",
-      "description": "Create a slider (linear) joint between two components.",
+      "description": "Create a slider (linear) joint between two components (position in cm).",
       "parameters": {
         "component1_index": {
           "type": "integer",
@@ -501,7 +501,7 @@
     },
     {
       "name": "measure",
-      "description": "Measure dimensions of bodies, edges, or faces.",
+      "description": "Measure dimensions of bodies, edges, or faces (all results in cm/cm\u00b2/cm\u00b3).",
       "parameters": {
         "measurement_type": {
           "type": "string",
@@ -618,6 +618,11 @@
       ]
     },
     {
+      "name": "ping",
+      "description": "Health check: verify the MCP server can communicate with the Fusion 360 add-in.",
+      "parameters": {}
+    },
+    {
       "name": "revolve",
       "description": "Revolve the most recent sketch profile around a construction axis (degrees).",
       "parameters": {
@@ -671,7 +676,7 @@
     },
     {
       "name": "set_joint_angle",
-      "description": "Animate a revolute joint to a specific angle (degrees).",
+      "description": "Set a revolute joint to a specific angle (degrees).",
       "parameters": {
         "angle": {
           "type": "number"
@@ -687,7 +692,7 @@
     },
     {
       "name": "set_joint_distance",
-      "description": "Animate a slider joint to a specific distance (cm).",
+      "description": "Set a slider joint to a specific distance (cm).",
       "parameters": {
         "distance": {
           "type": "number"
