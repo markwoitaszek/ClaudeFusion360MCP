@@ -6,6 +6,10 @@ Protocol (ADR-D002):
   3. Add-in writes response_{id}.json
   4. MCP server polls for response, returns result
 
+Protocol versioning (NR-1):
+  Every command includes "protocol_version": PROTOCOL_VERSION. The add-in
+  rejects commands with a mismatched version (fail-closed).
+
 Session token (MT-3):
   On startup, the MCP server generates a session token and writes it to
   COMM_DIR/session_token. Every command includes the token. The add-in
@@ -23,6 +27,10 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 COMM_DIR = Path.home() / "fusion_mcp_comm"
+
+# IPC protocol version (NR-1): integer, incremented on breaking schema changes.
+# The add-in rejects commands with a mismatched version.
+PROTOCOL_VERSION = 1
 
 _session_token: str | None = None
 
@@ -80,7 +88,7 @@ def send_fusion_command(tool_name: str, params: dict) -> dict:
     cmd_file = COMM_DIR / f"command_{cmd_id}.json"
     resp_file = COMM_DIR / f"response_{cmd_id}.json"
 
-    command = {"type": "tool", "name": tool_name, "params": params, "id": cmd_id}
+    command = {"type": "tool", "name": tool_name, "params": params, "id": cmd_id, "protocol_version": PROTOCOL_VERSION}
     if _session_token is None:
         # Lazy init: supports multi-process FastMCP workers that import without __main__
         initialize_ipc()

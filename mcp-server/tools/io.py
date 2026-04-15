@@ -1,6 +1,6 @@
-"""Export/import, inspection, and measurement tools.
+"""Export/import, inspection, measurement, and health check tools.
 
-Tools: export_stl, export_step, export_3mf, import_mesh,
+Tools: ping, export_stl, export_step, export_3mf, import_mesh,
        get_design_info, get_body_info, measure, fit_view
 """
 
@@ -9,6 +9,17 @@ from mcp.server.fastmcp import FastMCP
 from validation import validate_enum, validate_filepath
 
 router = FastMCP("io")
+
+
+@router.tool()
+def ping() -> dict:
+    """Health check: verify the MCP server can communicate with the Fusion 360 add-in.
+
+    Returns add-in status and Fusion 360 version. Use this as the first call in a
+    session to confirm the connection is working before sending modeling commands.
+    Unlike get_design_info(), this works even without an active design open.
+    """
+    return send_fusion_command("ping", {})
 
 
 @router.tool()
@@ -43,7 +54,7 @@ def get_body_info(body_index: int = None) -> dict:
 def measure(
     measurement_type: str = "body", body_index: int = None, edge_index: int = None, face_index: int = None
 ) -> dict:
-    """Measure dimensions of bodies, edges, or faces.
+    """Measure dimensions of bodies, edges, or faces (all results in cm/cm²/cm³).
 
     Args:
         measurement_type: What to measure - "body", "edge", or "face"
@@ -52,9 +63,9 @@ def measure(
         face_index: Face index (for measurement_type="face")
 
     Returns:
-        body: volume, surface_area, bounding_box with size
-        edge: length
-        face: area
+        body: volume (cm³), surface_area (cm²), bounding_box with size (cm)
+        edge: length (cm)
+        face: area (cm²)
     """
     validate_enum(measurement_type, ["body", "edge", "face"], "measurement_type")
     params = {"type": measurement_type}

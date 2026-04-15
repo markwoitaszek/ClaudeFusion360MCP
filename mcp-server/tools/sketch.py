@@ -13,7 +13,9 @@ router = FastMCP("sketch")
 
 @router.tool()
 def batch(commands: list) -> dict:
-    """Execute multiple Fusion commands in a single call - MUCH faster for complex operations.
+    """Execute multiple Fusion commands in a single call (all dimensions in cm).
+
+    MUCH faster for complex operations — sends 5-10 commands in one round-trip.
 
     Example: batch([
         {"name": "create_sketch", "params": {"plane": "XY"}},
