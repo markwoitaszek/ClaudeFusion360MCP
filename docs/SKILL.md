@@ -1370,8 +1370,7 @@ When operations fail, follow this diagnostic sequence:
 | Error Code | Meaning | Recovery |
 |------------|---------|----------|
 | `F360_TIMEOUT` | Fusion 360 did not respond in time | 1. Call `ping()` (5s fast check). 2. If ping fails, ask user to verify Fusion is running. 3. Check add-in is loaded. |
-| `F360_SESSION_INVALID` | Session token mismatch | Restart the MCP server to generate a new token. |
-| `F360_IPC_ERROR` | Communication directory issue | Check `~/fusion_mcp_comm/` exists with correct permissions. |
+| `F360_IPC_ERROR` | Communication directory or session issue | Check `~/fusion_mcp_comm/` exists with permissions `drwx------` (700). If session token mismatch, restart the MCP server. |
 
 ### Geometry Failures
 

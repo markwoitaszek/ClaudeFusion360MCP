@@ -31,7 +31,6 @@ _BATCH_OPERATIONS = [
     "sketch",
     "extrude",
     "revolve",
-    "sweep",
     "fillet",
     "chamfer",
     "shell",
@@ -66,6 +65,7 @@ def plan_design(description: str, manufacturing_process: str = "general") -> dic
         raise ValueError("description cannot be empty")
     if len(description) > 2000:
         raise ValueError("description exceeds maximum length of 2000 characters")
+    manufacturing_process = manufacturing_process.strip().lower()
     validate_enum(manufacturing_process, _MANUFACTURING_PROCESSES, "manufacturing_process")
 
     # Manufacturing-specific constraints
@@ -141,15 +141,15 @@ def plan_design(description: str, manufacturing_process: str = "general") -> dic
 
 
 @router.tool()
-def estimate_batch_sequence(operations: str) -> dict:
+def estimate_batch_sequence(operations: list[str]) -> dict:
     """Validate and estimate a batch of Fusion 360 operations. offline_safe
 
     Use this to pre-validate a sequence of operations before executing them.
     Works without a live Fusion 360 connection.
 
     Args:
-        operations: Comma-separated list of operation names in execution order.
-            Valid operations: sketch, extrude, revolve, sweep, fillet, chamfer,
+        operations: List of operation names in execution order.
+            Valid operations: sketch, extrude, revolve, fillet, chamfer,
             shell, pattern_rectangular, pattern_circular, mirror,
             move_component, rotate_component, boolean.
 
@@ -157,10 +157,10 @@ def estimate_batch_sequence(operations: str) -> dict:
         Validation result with operation sequence, dependency warnings,
         and estimated complexity.
     """
-    if not operations or not operations.strip():
+    if not operations:
         raise ValueError("operations cannot be empty")
 
-    op_list = [op.strip().lower() for op in operations.split(",") if op.strip()]
+    op_list = [op.strip().lower() for op in operations if op.strip()]
     if not op_list:
         raise ValueError("operations must contain at least one valid operation")
     if len(op_list) > 50:
@@ -181,13 +181,13 @@ def estimate_batch_sequence(operations: str) -> dict:
     for i, op in enumerate(op_list):
         if op == "sketch":
             has_sketch = True
-        elif op in ("extrude", "revolve", "sweep"):
+        elif op in ("extrude", "revolve"):
             if not has_sketch:
                 warnings.append(f"Step {i + 1} ({op}): requires a sketch — add 'sketch' before this operation.")
             has_body = True
         elif op in ("fillet", "chamfer", "shell", "pattern_rectangular", "pattern_circular", "mirror", "boolean"):
             if not has_body:
-                warnings.append(f"Step {i + 1} ({op}): requires a body — add an extrude/revolve/sweep first.")
+                warnings.append(f"Step {i + 1} ({op}): requires a body — add an extrude/revolve first.")
         elif op in ("move_component", "rotate_component"):
             if not has_body:
                 warnings.append(f"Step {i + 1} ({op}): requires a component body to position.")

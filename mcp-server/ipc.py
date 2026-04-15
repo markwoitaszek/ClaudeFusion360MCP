@@ -148,8 +148,6 @@ def send_fusion_command(tool_name: str, params: dict, *, timeout_s: float = 45.0
     _check_comm_dir()
 
     _command_counter += 1
-    _stats["commands_sent"] += 1
-    _stats["last_tool"] = tool_name
 
     # Combine timestamp + counter + random suffix to guarantee uniqueness
     cmd_id = f"{int(time.time() * 1000)}_{_command_counter}_{secrets.token_hex(4)}"
@@ -160,12 +158,6 @@ def send_fusion_command(tool_name: str, params: dict, *, timeout_s: float = 45.0
     if _session_token is None:
         # Lazy init: supports multi-process FastMCP workers that import without __main__
         initialize_ipc()
-    if _session_token is None:
-        raise FusionIPCError(
-            "IPC initialization failed: session token could not be generated.",
-            tool_name=tool_name,
-            remediation="Restart the MCP server. If the issue persists, check COMM_DIR permissions.",
-        )
     command["session_token"] = _session_token
 
     # Atomic write: write to .tmp then rename so the add-in never reads partial JSON
@@ -176,6 +168,10 @@ def send_fusion_command(tool_name: str, params: dict, *, timeout_s: float = 45.0
     finally:
         os.close(fd)
     os.replace(tmp_file, cmd_file)
+
+    # Increment counters only after successful dispatch
+    _stats["commands_sent"] += 1
+    _stats["last_tool"] = tool_name
     logger.debug("Command sent: tool=%s cmd_id=%s timeout_s=%.1f", tool_name, cmd_id, timeout_s)
     start_time = time.monotonic()
 
@@ -192,7 +188,7 @@ def send_fusion_command(tool_name: str, params: dict, *, timeout_s: float = 45.0
                         result = json.load(f)
                 except (json.JSONDecodeError, OSError) as e:
                     _stats["commands_failed"] += 1
-                    _stats["last_error"] = f"Malformed response: {e}"
+                    _stats["last_error"] = f"Malformed response for {tool_name}"
                     raise FusionIPCError(
                         f"Malformed response from Fusion 360: {e}",
                         tool_name=tool_name,
@@ -211,6 +207,7 @@ def send_fusion_command(tool_name: str, params: dict, *, timeout_s: float = 45.0
                         remediation="Check the Fusion 360 add-in logs for details.",
                     )
                 _stats["commands_succeeded"] += 1
+                _stats["last_error"] = None
                 return result
             if i == midpoint:
                 logger.warning(

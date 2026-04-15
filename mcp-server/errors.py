@@ -5,8 +5,8 @@ Each exception carries structured diagnostic information:
   - tool_name: the MCP tool that triggered the error
   - remediation: human-readable suggestion for resolution
 
-Security constraint: sanitize() strips __cause__ chains to prevent
-internal handler names from leaking to the LLM via MCP responses.
+Security constraint: to_safe_dict() returns a sanitized representation
+safe for MCP serialization, excluding __cause__ chains and internal details.
 """
 
 
@@ -20,11 +20,11 @@ class FusionError(Exception):
         self.remediation = remediation
         super().__init__(message)
 
-    def sanitize(self) -> dict:
+    def to_safe_dict(self) -> dict:
         """Return a sanitized error dict safe for MCP serialization.
 
-        Strips __cause__ chain and internal details. Only exposes
-        error_code, message, tool_name, and remediation.
+        Returns only safe fields (error_code, message, tool_name, remediation).
+        Does NOT modify the exception object — __cause__/__context__ are preserved.
         """
         return {
             "error_code": self.error_code,
@@ -38,12 +38,6 @@ class FusionTimeoutError(FusionError):
     """Raised when Fusion 360 does not respond within the timeout period."""
 
     error_code: str = "F360_TIMEOUT"
-
-
-class FusionSessionError(FusionError):
-    """Raised when the session token does not match the add-in."""
-
-    error_code: str = "F360_SESSION_INVALID"
 
 
 class FusionIPCError(FusionError):

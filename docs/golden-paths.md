@@ -72,7 +72,7 @@ All dimensions are in **centimeters** (ADR-D003).
 
    ```
    draw_line(x1=0, y1=0, x2=2, y2=0)
-   draw_arc(center_x=2, center_y=-2.5, radius=2.5, start_angle=90, end_angle=0)
+   draw_arc(center_x=2, center_y=-2.5, start_x=2, start_y=0, end_x=4.5, end_y=-2.5)
    draw_line(x1=4.5, y1=-2.5, x2=4.5, y2=-8)
    draw_line(x1=4.5, y1=-8, x2=0, y2=-8)
    draw_line(x1=0, y1=-8, x2=0, y2=0)

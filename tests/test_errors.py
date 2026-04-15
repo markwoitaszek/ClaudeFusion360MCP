@@ -1,7 +1,7 @@
 """Tests for the typed exception hierarchy (mcp-server/errors.py)."""
 
 import pytest
-from errors import FusionError, FusionIPCError, FusionSessionError, FusionTimeoutError
+from errors import FusionError, FusionIPCError, FusionTimeoutError
 
 
 class TestFusionError:
@@ -14,23 +14,23 @@ class TestFusionError:
         assert err.tool_name == "ping"
         assert err.remediation == "try again"
 
-    def test_sanitize_strips_cause(self):
+    def test_to_safe_dict_strips_cause(self):
         try:
             try:
                 raise ValueError("internal detail")
             except ValueError:
                 raise FusionError("user-visible", tool_name="export_stl", remediation="check path") from None
         except FusionError as e:
-            sanitized = e.sanitize()
+            sanitized = e.to_safe_dict()
             assert sanitized["error_code"] == "F360_ERROR"
             assert sanitized["error"] == "user-visible"
             assert sanitized["tool_name"] == "export_stl"
             assert sanitized["remediation"] == "check path"
             assert "__cause__" not in sanitized
 
-    def test_sanitize_output_keys(self):
+    def test_to_safe_dict_output_keys(self):
         err = FusionError("msg")
-        sanitized = err.sanitize()
+        sanitized = err.to_safe_dict()
         assert set(sanitized.keys()) == {"error_code", "error", "tool_name", "remediation"}
 
 
@@ -43,13 +43,6 @@ class TestFusionTimeoutError:
     def test_is_catchable_as_base(self):
         with pytest.raises(FusionError):
             raise FusionTimeoutError("timeout")
-
-
-class TestFusionSessionError:
-    def test_error_code(self):
-        err = FusionSessionError("token mismatch")
-        assert err.error_code == "F360_SESSION_INVALID"
-        assert isinstance(err, FusionError)
 
 
 class TestFusionIPCError:

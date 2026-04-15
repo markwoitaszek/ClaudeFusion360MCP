@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Typed exception hierarchy (`FusionTimeoutError`, `FusionSessionError`, `FusionIPCError`) replacing bare `Exception` raises
+- Typed exception hierarchy (`FusionTimeoutError`, `FusionIPCError`) replacing bare `Exception` raises
 - Ping fast-path with 5-second timeout for quick connectivity probing
 - `Makefile` with standard development targets (`run`, `test`, `lint`, `clean`, etc.)
 - CLI entry point: `fusion360-mcp` via `pyproject.toml` `[project.scripts]`

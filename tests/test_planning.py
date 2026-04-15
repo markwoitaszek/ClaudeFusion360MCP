@@ -50,6 +50,11 @@ class TestPlanDesign:
         with pytest.raises(ValueError, match="Invalid manufacturing_process"):
             planning.plan_design("part", "laser_cutting")
 
+    def test_case_insensitive_process(self):
+        result = planning.plan_design("test part", "FDM_3D_PRINT")
+        assert result["success"] is True
+        assert result["design_brief"]["manufacturing_process"] == "fdm_3d_print"
+
     def test_all_valid_processes(self):
         for process in planning._MANUFACTURING_PROCESSES:
             result = planning.plan_design("test part", process)
@@ -58,7 +63,7 @@ class TestPlanDesign:
 
 class TestEstimateBatchSequence:
     def test_simple_sequence(self):
-        result = planning.estimate_batch_sequence("sketch,extrude,fillet")
+        result = planning.estimate_batch_sequence(["sketch", "extrude", "fillet"])
         assert result["success"] is True
         batch = result["batch_estimate"]
         assert batch["operations"] == ["sketch", "extrude", "fillet"]
@@ -67,45 +72,53 @@ class TestEstimateBatchSequence:
         assert batch["warnings"] == []
 
     def test_missing_sketch_warning(self):
-        result = planning.estimate_batch_sequence("extrude,fillet")
+        result = planning.estimate_batch_sequence(["extrude", "fillet"])
         batch = result["batch_estimate"]
         assert batch["is_valid"] is False
         assert any("requires a sketch" in w for w in batch["warnings"])
 
     def test_missing_body_warning(self):
-        result = planning.estimate_batch_sequence("sketch,fillet")
+        result = planning.estimate_batch_sequence(["sketch", "fillet"])
         batch = result["batch_estimate"]
         assert batch["is_valid"] is False
         assert any("requires a body" in w for w in batch["warnings"])
 
     def test_valid_full_workflow(self):
-        result = planning.estimate_batch_sequence("sketch,extrude,fillet,chamfer,shell")
+        result = planning.estimate_batch_sequence(["sketch", "extrude", "fillet", "chamfer", "shell"])
         assert result["batch_estimate"]["is_valid"] is True
         assert result["batch_estimate"]["estimated_complexity"] == "low"
 
     def test_medium_complexity(self):
-        ops = ",".join(["sketch", "extrude"] + ["fillet"] * 8)
+        ops = ["sketch", "extrude"] + ["fillet"] * 8
         result = planning.estimate_batch_sequence(ops)
         assert result["batch_estimate"]["estimated_complexity"] == "medium"
 
     def test_high_complexity(self):
-        ops = ",".join(["sketch", "extrude"] + ["fillet"] * 20)
+        ops = ["sketch", "extrude"] + ["fillet"] * 20
         result = planning.estimate_batch_sequence(ops)
         assert result["batch_estimate"]["estimated_complexity"] == "high"
 
     def test_empty_operations_rejected(self):
         with pytest.raises(ValueError, match="cannot be empty"):
-            planning.estimate_batch_sequence("")
+            planning.estimate_batch_sequence([])
 
     def test_invalid_operation_rejected(self):
         with pytest.raises(ValueError, match="Invalid operations"):
-            planning.estimate_batch_sequence("sketch,teleport")
+            planning.estimate_batch_sequence(["sketch", "teleport"])
 
     def test_too_many_operations_rejected(self):
-        ops = ",".join(["sketch"] * 51)
+        ops = ["sketch"] * 51
         with pytest.raises(ValueError, match="exceeds maximum"):
             planning.estimate_batch_sequence(ops)
 
     def test_whitespace_handling(self):
-        result = planning.estimate_batch_sequence(" sketch , extrude , fillet ")
+        result = planning.estimate_batch_sequence([" sketch ", " extrude ", " fillet "])
         assert result["batch_estimate"]["operations"] == ["sketch", "extrude", "fillet"]
+
+    def test_case_insensitive(self):
+        result = planning.estimate_batch_sequence(["SKETCH", "Extrude", "fillet"])
+        assert result["batch_estimate"]["operations"] == ["sketch", "extrude", "fillet"]
+
+    def test_sweep_rejected(self):
+        with pytest.raises(ValueError, match="Invalid operations.*sweep"):
+            planning.estimate_batch_sequence(["sketch", "sweep"])

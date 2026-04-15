@@ -47,5 +47,8 @@ jobs:
       - name: Check mcp.json freshness (LT-1)
         run: python scripts/generate_mcp_registry.py --check
 
+      - name: Validate skill frontmatter (ADR-G002)
+        run: python scripts/validate_skills.py docs/ --check-version
+
       - name: Run tests with coverage
         run: pytest tests/ -v --cov=mcp-server --cov-fail-under=70 --junitxml=test-results.xml

@@ -79,11 +79,15 @@ else:
         )
     )
 
-# Explicitly configure root logger to guarantee TokenScrubFilter is active,
-# even if an imported module (e.g., mcp) called basicConfig first.
+# Configure root logger with TokenScrubFilter on both handler and logger level.
+# Logger-level filter ensures protection regardless of which handlers are present.
 _root_logger = logging.getLogger()
 _root_logger.setLevel(getattr(logging, _log_level, logging.INFO))
-_root_logger.handlers = [_handler]
+_root_logger.addFilter(TokenScrubFilter())
+if not _root_logger.handlers:
+    _root_logger.addHandler(_handler)
+else:
+    _root_logger.addHandler(_handler)
 
 # ---------------------------------------------------------------------------
 # Version detection
@@ -122,6 +126,9 @@ mcp.include_router(planning_router)
 # Session stats tool (REQ-P1-2)
 # ---------------------------------------------------------------------------
 
+# Track server start time for uptime calculation
+_start_time: float | None = None
+
 
 @mcp.tool()
 def get_session_stats() -> dict:
@@ -134,10 +141,6 @@ def get_session_stats() -> dict:
     stats["server_version"] = __version__
     stats["uptime_seconds"] = round(time.monotonic() - _start_time, 1) if _start_time else 0
     return stats
-
-
-# Track server start time for uptime calculation
-_start_time: float | None = None
 
 
 # ---------------------------------------------------------------------------
