@@ -2,7 +2,7 @@
   "name": "fusion360-mcp-server",
   "version": "7.2.0",
   "description": "Control Autodesk Fusion 360 with Claude AI through the Model Context Protocol",
-  "tool_count": 40,
+  "tool_count": 42,
   "tools": [
     {
       "name": "batch",
@@ -378,6 +378,18 @@
       ]
     },
     {
+      "name": "estimate_batch_sequence",
+      "description": "Validate and estimate a batch of Fusion 360 operations. offline_safe",
+      "parameters": {
+        "operations": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operations"
+      ]
+    },
+    {
       "name": "export_3mf",
       "description": "Export the design as 3MF file (modern 3D printing format).\nFilepath must be within allowed directories (~/Desktop, ~/Downloads, ~/Documents).",
       "parameters": {
@@ -621,6 +633,22 @@
       "name": "ping",
       "description": "Health check: verify the MCP server can communicate with the Fusion 360 add-in.",
       "parameters": {}
+    },
+    {
+      "name": "plan_design",
+      "description": "Generate a structured design brief for a part or assembly. offline_safe",
+      "parameters": {
+        "description": {
+          "type": "string"
+        },
+        "manufacturing_process": {
+          "type": "string",
+          "default": "general"
+        }
+      },
+      "required": [
+        "description"
+      ]
     },
     {
       "name": "revolve",

@@ -13,6 +13,7 @@
 | ID | Title | Status | Date |
 |----|-------|--------|------|
 | [ADR-G001](governance/ADR-G001-automation-safety-boundary.md) | Automation Safety Boundary | Accepted | 2026-04-11 |
+| [ADR-G002](governance/ADR-G002-skill-file-schema-governance.md) | Skill File Schema Governance | Accepted | 2026-04-14 |
 
 ### Domain
 
@@ -43,6 +44,7 @@ Cross-layer references (P001, G001 ↔ Domain ADRs) are documented in each ADR's
 |-----|-----------|---------|
 | P001 | -- | -- |
 | G001 | -- | -- |
+| G002 | -- | G001 |
 | D001 | -- | D002, D003, D004 |
 | D002 | D001 | -- |
 | D003 | D001 | D004 |

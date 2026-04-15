@@ -20,6 +20,11 @@ def _create_version_files(tmp_path, pyproject_version, version_file_version, man
     manifest_dir = tmp_path / "fusion-addin"
     manifest_dir.mkdir()
     (manifest_dir / "FusionMCP.manifest").write_text(json.dumps({"version": manifest_version}))
+    # Skill files with mcp_version frontmatter
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    for name in ("SKILL.md", "SPATIAL_AWARENESS.md"):
+        (docs_dir / name).write_text(f"---\nmcp_version: {pyproject_version}\ntier: core\n---\n")
     return tmp_path
 
 
@@ -35,6 +40,11 @@ def test_all_versions_match(tmp_path, monkeypatch):
             "VERSION": tmp_path / "VERSION",
             "FusionMCP.manifest": tmp_path / "fusion-addin" / "FusionMCP.manifest",
         },
+    )
+    monkeypatch.setattr(
+        check_version_sync,
+        "SKILL_FILES",
+        [tmp_path / "docs" / "SKILL.md", tmp_path / "docs" / "SPATIAL_AWARENESS.md"],
     )
     result = check_version_sync.main()
     assert result == 0
@@ -52,6 +62,11 @@ def test_version_drift_detected(tmp_path, monkeypatch):
             "VERSION": tmp_path / "VERSION",
             "FusionMCP.manifest": tmp_path / "fusion-addin" / "FusionMCP.manifest",
         },
+    )
+    monkeypatch.setattr(
+        check_version_sync,
+        "SKILL_FILES",
+        [tmp_path / "docs" / "SKILL.md", tmp_path / "docs" / "SPATIAL_AWARENESS.md"],
     )
     result = check_version_sync.main()
     assert result == 1

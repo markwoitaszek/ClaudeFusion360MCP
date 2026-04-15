@@ -56,8 +56,20 @@ def detect_platform() -> tuple[str, Path]:
     return system, addin_dir
 
 
+def _warn_no_venv():
+    """Warn if running outside a virtual environment."""
+    if sys.prefix == sys.base_prefix:
+        print(
+            "  WARNING: No virtual environment detected. Installing into the system Python.\n"
+            "  Consider creating a venv first:\n"
+            "    python -m venv .venv && source .venv/bin/activate  # macOS/Linux\n"
+            "    python -m venv .venv && .venv\\Scripts\\activate     # Windows"
+        )
+
+
 def check_prerequisites(dry_run: bool = False):
     """Verify Python version and pip availability."""
+    _warn_no_venv()
     if dry_run:
         py_version = sys.version.split()[0]
         ok = sys.version_info >= (3, 10)

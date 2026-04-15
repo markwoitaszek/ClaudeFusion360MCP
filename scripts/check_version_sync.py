@@ -20,6 +20,12 @@ VERSION_SOURCES = {
     "FusionMCP.manifest": PROJECT_ROOT / "fusion-addin" / "FusionMCP.manifest",
 }
 
+# Skill files with mcp_version frontmatter that must match the canonical version.
+SKILL_FILES = [
+    PROJECT_ROOT / "docs" / "SKILL.md",
+    PROJECT_ROOT / "docs" / "SPATIAL_AWARENESS.md",
+]
+
 
 def read_pyproject_version(path: Path) -> str:
     """Read version from pyproject.toml using tomllib (3.11+) or regex fallback."""
@@ -62,7 +68,7 @@ READERS = {
 
 def _extract_python_constant(path: Path, name: str) -> str | None:
     """Extract a Python constant assignment (e.g., PROTOCOL_VERSION = 1) from a file."""
-    pattern = rf'^{re.escape(name)}\s*=\s*(.+?)$'
+    pattern = rf"^{re.escape(name)}\s*=\s*(.+?)$"
     text = path.read_text()
     match = re.search(pattern, text, re.MULTILINE)
     if not match:
@@ -88,6 +94,27 @@ PARITY_CHECKS: list[tuple[str, list[tuple[str, Path]]]] = [
         ],
     ),
 ]
+
+
+def check_skill_mcp_versions(canonical_version: str) -> list[str]:
+    """Check that SKILL.md files have mcp_version matching the canonical version."""
+    drift: list[str] = []
+    for skill_path in SKILL_FILES:
+        label = str(skill_path.relative_to(PROJECT_ROOT))
+        if not skill_path.exists():
+            drift.append(f"  mcp_version in {label}: file not found")
+            continue
+        text = skill_path.read_text()
+        match = re.search(r"^mcp_version:\s*(.+)$", text, re.MULTILINE)
+        if not match:
+            print(f"  mcp_version in {label}: not found [SKIP]")
+            continue
+        mcp_ver = match.group(1).strip().strip('"').strip("'")
+        status = "OK" if mcp_ver == canonical_version else "DRIFT"
+        print(f"  mcp_version in {label}: {mcp_ver} [{status}]")
+        if status == "DRIFT":
+            drift.append(f"  mcp_version in {label}: {mcp_ver} (expected {canonical_version})")
+    return drift
 
 
 def check_parity(canonical_version: str) -> list[str]:
@@ -158,6 +185,10 @@ def main() -> int:
         if status == "DRIFT":
             drift.append(f"  {name}: {version} (expected {canonical})")
         print(f"  {name}: {version} [{status}]")
+
+    # Skill file mcp_version checks
+    print("\nSkill file mcp_version checks:")
+    drift.extend(check_skill_mcp_versions(canonical))
 
     # Cross-runtime constant parity checks
     print("\nCross-runtime parity checks:")

@@ -3,9 +3,11 @@ name: spatial-awareness-cad
 description: Spatial reasoning and geometric verification protocols for CAD operations. Teaches coordinate interpretation, bounding box analysis, extrusion direction prediction, and pre/post operation verification. Designed to prevent geometry placement errors.
 version: 1.2.0
 model_target: claude-opus-4-5
+mcp_version: 7.2.0
+tier: core
 companion_skills: 
   - SKILL_Fusion360_Opus_v4.0.md
-last_updated: 2024-12-09
+last_updated: 2026-04-14
 ---
 
 # Spatial Awareness & Geometric Verification Skill v1.1

@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import ipc
 import pytest
+from errors import FusionIPCError
 
 
 class TestInitializeIpc:
@@ -142,18 +143,18 @@ class TestLazyInit:
 
 class TestSymlinkGuard:
     def test_non_directory_raises_error(self, tmp_path):
-        """If COMM_DIR is not a real directory, initialize_ipc raises RuntimeError."""
+        """If COMM_DIR is not a real directory, initialize_ipc raises FusionIPCError."""
         # Use a fresh path that doesn't pre-exist, let mkdir create it normally
         comm = tmp_path / "fresh_comm"
         with patch.object(ipc, "COMM_DIR", comm):
             # Make os.stat (in the ipc module) return a non-directory mode
             fake_stat = os.stat_result((stat.S_IFREG | 0o700, 0, 0, 0, os.getuid(), 0, 0, 0, 0, 0))
             with patch("ipc.os.stat", return_value=fake_stat):
-                with pytest.raises(RuntimeError, match="not a real directory"):
+                with pytest.raises(FusionIPCError, match="not a real directory"):
                     ipc.initialize_ipc()
 
     def test_wrong_owner_raises_error(self, mock_comm_dir):
-        """If COMM_DIR is not owned by current user, initialize_ipc raises RuntimeError."""
+        """If COMM_DIR is not owned by current user, initialize_ipc raises FusionIPCError."""
         with patch.object(ipc, "COMM_DIR", mock_comm_dir):
             # Make os.stat return a directory with wrong uid
             real_stat = os.stat(mock_comm_dir, follow_symlinks=False)
@@ -173,5 +174,5 @@ class TestSymlinkGuard:
                 )
             )
             with patch("ipc.os.stat", return_value=fake_stat):
-                with pytest.raises(RuntimeError, match="not owned by current user"):
+                with pytest.raises(FusionIPCError, match="not owned by the current user"):
                     ipc.initialize_ipc()

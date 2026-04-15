@@ -31,8 +31,11 @@ This project uses **GitHub Flow**: a single `main` branch with short-lived featu
 
 | Command | What it does |
 |---------|-------------|
-| `pip install mcp` | Install MCP framework dependency |
-| `python mcp-server/fusion360_mcp_server.py` | Run the MCP server |
+| `pip install -e '.[dev]'` | Install all dependencies (including dev tools) |
+| `make run` | Run the MCP server (LOG_LEVEL=DEBUG) |
+| `make test` | Run tests with 70% coverage threshold |
+| `make lint` | Lint with ruff + black |
+| `python mcp-server/fusion360_mcp_server.py` | Run the MCP server directly |
 
 ### Prerequisites
 
@@ -44,7 +47,14 @@ This project uses **GitHub Flow**: a single `main` branch with short-lived featu
 
 ## Testing
 
-TODO: Add test framework and commands. The project currently has no automated test suite.
+| Command | What it does |
+|---------|-------------|
+| `make test` | Run pytest with coverage (70% threshold) |
+| `make lint` | Run ruff + black format check |
+| `python -m pytest tests/ -v` | Run tests without coverage |
+| `python -m pytest tests/ -v -m "not integration"` | Skip integration tests (no Fusion required) |
+
+Tests are in `tests/`. Integration tests requiring a live Fusion 360 instance are marked with `@pytest.mark.integration` and gated by the `FUSION_SMOKE_TESTS` environment variable.
 
 ---
 

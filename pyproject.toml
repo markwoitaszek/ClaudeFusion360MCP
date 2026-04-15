@@ -7,6 +7,12 @@ dependencies = [
     "mcp>=1.0,<2",
 ]
 
+[project.scripts]
+fusion360-mcp = "fusion360_mcp_server:main"
+
+[tool.setuptools]
+package-dir = {"" = "mcp-server"}
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7",
